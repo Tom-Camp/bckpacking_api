@@ -1,0 +1,63 @@
+[project]
+name = "bp-api"
+version = "0.1.0"
+description = "API for managing backpacking trips and training"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "alembic>=1.20.0",
+    "asyncpg>=0.31.0",
+    "bcrypt>=5.0.0",
+    "fastapi[standard]>=0.141.1",
+    "pydantic-settings>=2.15.0",
+    "pyjwt>=2.14.0",
+    "python-slugify>=9.1.0",
+    "sqlmodel>=0.0.42",
+    "structlog>=26.1.0",
+    "uvicorn>=0.53.0",
+    "zxcvbn>=4.5.0",
+]
+
+[dependency-groups]
+dev = [
+    "aiosqlite>=0.22.1",
+    "commitizen>=4.18.1",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.16.8",
+]
+
+[tool.bandit]
+exclude_dirs = ["tests", "migration"]
+tests = ["B201", "B301"]
+skips = ["B101", "B601"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 109
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP", "ASYNC", "RUF"]
+ignore = ["E501", "B008"]  # E501: line length enforced by ruff-format; B008: Depends() in defaults is FastAPI convention
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.mypy]
+python_version = "3.14"
+plugins = ["pydantic.mypy"]
+ignore_missing_imports = true
+warn_return_any = true
+warn_unused_ignores = true
+
+[tool.commitizen]
+name = "cz_conventional_commits"
+tag_format = "v$version"
+version_scheme = "semver"
+version_provider = "pep621"
+update_changelog_on_bump = true
