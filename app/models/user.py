@@ -2,10 +2,10 @@ from datetime import datetime
 from enum import Enum
 
 from sqlalchemy import Column, DateTime
-from sqlalchemy import Enum as SAEnum
-from sqlmodel import Field
+from sqlmodel import Field, Relationship
 
-from app.models.base import ModelBase
+from app.models.base import ModelBase, enum_field
+from app.models.trip import Trip
 
 
 class UserStatus(str, Enum):
@@ -25,23 +25,14 @@ class User(ModelBase, table=True):
     password_hash: str | None = None
     first_name: str | None = None
     last_name: str | None = None
-    status: UserStatus = Field(
-        default=UserStatus.ACTIVE,
-        sa_column=Column(
-            SAEnum(UserStatus, values_callable=lambda x: [e.value for e in x]),
-            nullable=False,
-        ),
-    )
-    role: UserRole = Field(
-        default=UserRole.USER,
-        sa_column=Column(
-            SAEnum(UserRole, values_callable=lambda x: [e.value for e in x]),
-            nullable=False,
-        ),
-    )
+    status: UserStatus = enum_field(UserStatus, UserStatus.ACTIVE)
+    role: UserRole = enum_field(UserRole, UserRole.USER)
     first_login: datetime | None = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
     )
     last_login: datetime | None = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
+    )
+    trips: list[Trip] = Relationship(
+        back_populates="user", passive_deletes=True, sa_relationship_kwargs={"lazy": "raise_on_sql"}
     )

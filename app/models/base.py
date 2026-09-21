@@ -1,9 +1,12 @@
 from datetime import UTC, datetime
+from enum import Enum
+from typing import Any
 from uuid import UUID, uuid4
 
-from sqlalchemy import Column, DateTime, String, event, func
+from sqlalchemy import Column, DateTime, event, func
+from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import class_mapper
-from sqlalchemy.sql.type_api import TypeDecorator
+from sqlalchemy.sql.type_api import TypeDecorator, TypeEngine
 from sqlmodel import Field, SQLModel
 
 
@@ -11,12 +14,22 @@ def _utcnow() -> datetime:
     return datetime.now(UTC)
 
 
+def enum_field(enum_cls: type[Enum], default: Enum) -> Any:
+    return Field(
+        default=default,
+        sa_column=Column(SAEnum(enum_cls, values_callable=lambda x: [e.value for e in x]), nullable=False),
+    )
+
+
 def _is_string_column(col_type: object) -> bool:
-    if isinstance(col_type, String):
-        return True
-    if isinstance(col_type, TypeDecorator) and isinstance(col_type.impl_instance, String):
-        return True
-    return False
+    if isinstance(col_type, TypeDecorator):
+        col_type = col_type.impl_instance
+    if not isinstance(col_type, TypeEngine):
+        return False
+    try:
+        return col_type.python_type is str
+    except NotImplementedError:
+        return False
 
 
 def _strip_strings(target: "ModelBase") -> None:
