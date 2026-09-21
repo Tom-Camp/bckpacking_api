@@ -31,7 +31,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("shutdown")
 
 
-app = FastAPI(title="Harvest Food", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="BckPack.ing", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
