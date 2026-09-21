@@ -7,8 +7,8 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import col
 
 from app.auth.passwords import hash_password
-from app.models import FoodPlanner, Gear, Trip, TripFood, User
-from app.models.trip import CHECKLIST_ITEMS, ChecklistItem, Meal, TripType, Unit
+from app.models import FoodPlanner, Gear, Trip, TripChecklistItem, TripFood, TripNote, User
+from app.models.trip import ChecklistItemKey, Meal, TripType, Unit
 
 hashed_password: str = hash_password("r1GRB3$ZB0*mbwymrJuJcdUTtdqESdf%AuD")
 
@@ -59,29 +59,38 @@ async def test_trip_defaults(session: AsyncSession) -> None:
     assert trip.measurements == Unit.IMPERIAL
     assert trip.trip_type == TripType.LOOP
     assert trip.permit_required is False
-    assert set(trip.checklist) == set(CHECKLIST_ITEMS)
-    assert all(isinstance(item, ChecklistItem) and item.checked is False for item in trip.checklist.values())
+    assert {item.item for item in trip.checklist_items} == set(ChecklistItemKey)
+    assert all(item.checked is False and item.details is None for item in trip.checklist_items)
 
 
-async def test_checklist_round_trips_through_json_column(session: AsyncSession) -> None:
+async def test_checklist_item_can_be_updated_and_queried_individually(session: AsyncSession) -> None:
     user = await _make_user(session, "checklist@example.com")
     trip = Trip(name="Checklist Trip", total_distance=10, user_id=user.id)
-    trip.set_checklist_item("water_sources", ChecklistItem(checked=True, details="Two reliable springs"))
     session.add(trip)
     await session.commit()
 
-    result = await session.execute(select(Trip).where(col(Trip.id) == trip.id))
-    reloaded = result.scalar_one()
+    water_item = next(i for i in trip.checklist_items if i.item == ChecklistItemKey.WATER_SOURCES)
+    water_item.checked = True
+    water_item.details = "Two reliable springs"
+    await session.commit()
 
-    assert reloaded.checklist["water_sources"].checked is True
-    assert reloaded.checklist["water_sources"].details == "Two reliable springs"
-    assert reloaded.checklist["fire_restrictions"].checked is False
+    result = await session.execute(
+        select(TripChecklistItem).where(col(TripChecklistItem.trip_id) == trip.id)
+    )
+    items = {i.item: i for i in result.scalars().all()}
+
+    assert items[ChecklistItemKey.WATER_SOURCES].checked is True
+    assert items[ChecklistItemKey.WATER_SOURCES].details == "Two reliable springs"
+    assert items[ChecklistItemKey.FIRE_RESTRICTIONS].checked is False
 
 
-def test_checklist_item_is_frozen() -> None:
-    item = ChecklistItem()
-    with pytest.raises(ValidationError):
-        item.checked = True  # type: ignore[misc]
+async def test_checklist_items_are_unique_per_trip_and_item(session: AsyncSession) -> None:
+    user = await _make_user(session, "dup-checklist@example.com")
+    trip = await _make_trip(session, user)
+
+    session.add(TripChecklistItem(trip_id=trip.id, item=ChecklistItemKey.WATER_SOURCES))
+    with pytest.raises(IntegrityError):
+        await session.commit()
 
 
 async def test_gear_category_is_lowercased(session: AsyncSession) -> None:
@@ -116,6 +125,26 @@ async def test_trip_gear_list_relationship(session: AsyncSession) -> None:
     loaded_trip = result.scalar_one()
 
     assert {g.category for g in loaded_trip.gear_list} == {"shelter", "cook"}
+
+
+async def test_trip_notes_relationship(session: AsyncSession) -> None:
+    user = await _make_user(session, "notes@example.com")
+    trip = await _make_trip(session, user)
+
+    session.add_all(
+        [
+            TripNote(content="Bring extra socks.", trip_id=trip.id),
+            TripNote(content="Check permit deadline.", trip_id=trip.id),
+        ]
+    )
+    await session.commit()
+
+    result = await session.execute(
+        select(Trip).options(selectinload(Trip.notes)).where(col(Trip.id) == trip.id)  # type: ignore[arg-type]
+    )
+    loaded_trip = result.scalar_one()
+
+    assert {n.content for n in loaded_trip.notes} == {"Bring extra socks.", "Check permit deadline."}
 
 
 async def test_food_planner_and_trip_food_relationship(session: AsyncSession) -> None:
@@ -173,7 +202,9 @@ async def test_food_planner_trip_id_is_unique(session: AsyncSession) -> None:
         await session.commit()
 
 
-async def test_deleting_trip_cascades_to_gear_and_food_planner(session: AsyncSession) -> None:
+async def test_deleting_trip_cascades_to_gear_food_planner_checklist_items_and_notes(
+    session: AsyncSession,
+) -> None:
     user = await _make_user(session, "cascade@example.com")
     trip = await _make_trip(session, user)
 
@@ -181,6 +212,7 @@ async def test_deleting_trip_cascades_to_gear_and_food_planner(session: AsyncSes
         [
             Gear(category="shelter", weight=1.0, quantity=1, trip_id=trip.id),
             FoodPlanner(trip_id=trip.id),
+            TripNote(content="Bring extra socks.", trip_id=trip.id),
         ]
     )
     await session.commit()
@@ -190,9 +222,13 @@ async def test_deleting_trip_cascades_to_gear_and_food_planner(session: AsyncSes
 
     remaining_gear = (await session.execute(select(Gear))).scalars().all()
     remaining_planners = (await session.execute(select(FoodPlanner))).scalars().all()
+    remaining_checklist_items = (await session.execute(select(TripChecklistItem))).scalars().all()
+    remaining_notes = (await session.execute(select(TripNote))).scalars().all()
 
     assert remaining_gear == []
     assert remaining_planners == []
+    assert remaining_checklist_items == []
+    assert remaining_notes == []
 
 
 async def test_deleting_food_planner_cascades_to_trip_food(session: AsyncSession) -> None:

@@ -1,12 +1,10 @@
 from datetime import datetime
 from enum import Enum
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, field_validator
-from sqlalchemy import JSON, Column, DateTime
-from sqlalchemy.ext.mutable import MutableDict
-from sqlalchemy.sql.type_api import TypeDecorator
+from pydantic import field_validator
+from sqlalchemy import Column, DateTime, UniqueConstraint, event
 from sqlmodel import Field, Relationship
 
 from app.models.base import ModelBase, enum_field
@@ -15,46 +13,15 @@ if TYPE_CHECKING:
     from app.models.user import User
 
 
-CHECKLIST_ITEMS = (
-    "water_sources",
-    "resupply_points",
-    "shuttle_scheduled",
-    "weather_checked",
-    "cell_coverage",
-    "offline_map",
-    "fire_restrictions",
-    "route_shared",
-)
-
-
-class ChecklistItem(BaseModel):
-    model_config = ConfigDict(frozen=True)
-
-    checked: bool = False
-    details: str | None = None
-
-
-class _ChecklistJSON(TypeDecorator):
-    impl = JSON
-    cache_ok = True
-
-    def process_bind_param(
-        self, value: dict[str, ChecklistItem] | None, dialect: object
-    ) -> dict[str, dict[str, object]] | None:
-        if value is None:
-            return None
-        return {key: item.model_dump() for key, item in value.items()}
-
-    def process_result_value(
-        self, value: dict[str, object] | None, dialect: object
-    ) -> dict[str, ChecklistItem]:
-        if value is None:
-            return {}
-        return {key: ChecklistItem.model_validate(item) for key, item in value.items()}
-
-
-def _default_checklist() -> dict[str, ChecklistItem]:
-    return {item: ChecklistItem() for item in CHECKLIST_ITEMS}
+class ChecklistItemKey(str, Enum):
+    WATER_SOURCES = "water_sources"
+    RESUPPLY_POINTS = "resupply_points"
+    SHUTTLE_SCHEDULED = "shuttle_scheduled"
+    WEATHER_CHECKED = "weather_checked"
+    CELL_COVERAGE = "cell_coverage"
+    OFFLINE_MAP = "offline_map"
+    FIRE_RESTRICTIONS = "fire_restrictions"
+    ROUTE_SHARED = "route_shared"
 
 
 class TripType(str, Enum):
@@ -113,6 +80,24 @@ class Gear(ModelBase, table=True):
         return v
 
 
+class TripChecklistItem(ModelBase, table=True):
+    __table_args__ = (UniqueConstraint("trip_id", "item"),)
+
+    trip_id: UUID = Field(foreign_key="trip.id", ondelete="CASCADE")
+    item: ChecklistItemKey = enum_field(ChecklistItemKey, ChecklistItemKey.WATER_SOURCES)
+    checked: bool = Field(default=False)
+    details: str | None = Field(default=None)
+    trip: "Trip" = Relationship(
+        back_populates="checklist_items", sa_relationship_kwargs={"lazy": "raise_on_sql"}
+    )
+
+
+class TripNote(ModelBase, table=True):
+    trip_id: UUID = Field(foreign_key="trip.id", ondelete="CASCADE")
+    content: str
+    trip: "Trip" = Relationship(back_populates="notes", sa_relationship_kwargs={"lazy": "raise_on_sql"})
+
+
 class Trip(ModelBase, table=True):
     name: str = Field(...)
     description: str | None = Field(default=None)
@@ -130,11 +115,6 @@ class Trip(ModelBase, table=True):
     emergency_contact: str | None = Field(default=None)
     permit_required: bool = Field(default=False)
     permit_details: str | None = Field(default=None)
-    checklist: dict[str, ChecklistItem] = Field(
-        default_factory=_default_checklist,
-        sa_column=Column(MutableDict.as_mutable(_ChecklistJSON), nullable=False),
-        description="Pre-trip safety checklist keyed by item name (see CHECKLIST_ITEMS)",
-    )
 
     user_id: UUID = Field(foreign_key="user.id", ondelete="CASCADE")
     user: "User" = Relationship(back_populates="trips", sa_relationship_kwargs={"lazy": "raise_on_sql"})
@@ -144,8 +124,16 @@ class Trip(ModelBase, table=True):
     gear_list: list[Gear] = Relationship(
         back_populates="trip", passive_deletes=True, sa_relationship_kwargs={"lazy": "selectin"}
     )
+    checklist_items: list[TripChecklistItem] = Relationship(
+        back_populates="trip",
+        passive_deletes=True,
+        sa_relationship_kwargs={"lazy": "selectin", "cascade": "all, delete-orphan"},
+    )
+    notes: list[TripNote] = Relationship(
+        back_populates="trip", passive_deletes=True, sa_relationship_kwargs={"lazy": "selectin"}
+    )
 
-    def set_checklist_item(self, key: str, item: ChecklistItem) -> None:
-        # Whole-attribute reassignment is always tracked; in-place `checklist[key] = ...`
-        # is not, until the object has round-tripped through the DB at least once.
-        self.checklist = {**self.checklist, key: item}
+
+@event.listens_for(Trip, "init")
+def _seed_checklist_items(_target: Trip, _args: tuple[Any, ...], kwargs: dict[str, Any]) -> None:
+    kwargs.setdefault("checklist_items", [TripChecklistItem(item=key) for key in ChecklistItemKey])
