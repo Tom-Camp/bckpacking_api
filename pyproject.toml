@@ -29,7 +29,7 @@ dev = [
 ]
 
 [tool.bandit]
-exclude_dirs = ["tests", "migration"]
+exclude_dirs = ["tests", "migrations"]
 tests = ["B201", "B301"]
 skips = ["B101", "B601"]
 
