@@ -7,7 +7,7 @@ from zxcvbn import zxcvbn
 
 from app.models.user import UserRole, UserStatus
 
-_USERNAME_RE = re.compile(r"^[a-z0-9_-]{3,30}$")
+_USERNAME_RE = re.compile(r"^[a-zA-Z0-9_-]{3,30}$")
 
 _MIN_ZXCVBN_SCORE = 3
 _MAX_PASSWORD_BYTES = 72  # bcrypt truncates/rejects beyond this
@@ -41,7 +41,7 @@ class UserCreate(BaseModel):
     @classmethod
     def validate_username(cls, v: str | None) -> str | None:
         if v is not None and not _USERNAME_RE.match(v):
-            raise ValueError("Username must be 3-30 characters: lowercase letters, digits, _ or -")
+            raise ValueError("Username must be 3-30 characters: letters, digits, _ or -")
         return v
 
 

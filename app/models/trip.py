@@ -119,7 +119,9 @@ class Trip(ModelBase, table=True):
     user_id: UUID = Field(foreign_key="user.id", ondelete="CASCADE")
     user: "User" = Relationship(back_populates="trips", sa_relationship_kwargs={"lazy": "raise_on_sql"})
     food_plan: Optional["FoodPlanner"] = Relationship(
-        back_populates="trip", passive_deletes=True, sa_relationship_kwargs={"lazy": "selectin"}
+        back_populates="trip",
+        passive_deletes=True,
+        sa_relationship_kwargs={"lazy": "selectin", "cascade": "all, delete-orphan"},
     )
     gear_list: list[Gear] = Relationship(
         back_populates="trip", passive_deletes=True, sa_relationship_kwargs={"lazy": "selectin"}
@@ -137,3 +139,8 @@ class Trip(ModelBase, table=True):
 @event.listens_for(Trip, "init")
 def _seed_checklist_items(_target: Trip, _args: tuple[Any, ...], kwargs: dict[str, Any]) -> None:
     kwargs.setdefault("checklist_items", [TripChecklistItem(item=key) for key in ChecklistItemKey])
+
+
+@event.listens_for(Trip, "init")
+def _seed_food_planner(_target: Trip, _args: tuple[Any, ...], kwargs: dict[str, Any]) -> None:
+    kwargs.setdefault("food_plan", FoodPlanner())

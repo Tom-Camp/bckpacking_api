@@ -61,6 +61,9 @@ async def test_trip_defaults(session: AsyncSession) -> None:
     assert trip.permit_required is False
     assert {item.item for item in trip.checklist_items} == set(ChecklistItemKey)
     assert all(item.checked is False and item.details is None for item in trip.checklist_items)
+    assert trip.food_plan is not None
+    assert trip.food_plan.target_calories == 0
+    assert trip.food_plan.target_food_weight == 0
 
 
 async def test_checklist_item_can_be_updated_and_queried_individually(session: AsyncSession) -> None:
@@ -150,12 +153,12 @@ async def test_trip_notes_relationship(session: AsyncSession) -> None:
 async def test_food_planner_and_trip_food_relationship(session: AsyncSession) -> None:
     user = await _make_user(session, "food@example.com")
     trip = await _make_trip(session, user)
-
-    planner = FoodPlanner(target_calories=12000, target_food_weight=6.5, trip_id=trip.id)
+    planner = trip.food_plan
+    assert planner is not None
+    planner.target_calories = 12000
+    planner.target_food_weight = 6.5
     session.add(planner)
     await session.commit()
-    # Not refreshing: planner.id is already set client-side and refresh() would eagerly
-    # populate the "selectin" food relationship (empty, at this point) into the session cache.
 
     session.add_all(
         [
@@ -192,10 +195,7 @@ async def test_food_planner_and_trip_food_relationship(session: AsyncSession) ->
 
 async def test_food_planner_trip_id_is_unique(session: AsyncSession) -> None:
     user = await _make_user(session, "oneplanner@example.com")
-    trip = await _make_trip(session, user)
-
-    session.add(FoodPlanner(trip_id=trip.id))
-    await session.commit()
+    trip = await _make_trip(session, user)  # already has an auto-seeded FoodPlanner
 
     session.add(FoodPlanner(trip_id=trip.id))
     with pytest.raises(IntegrityError):
@@ -211,7 +211,6 @@ async def test_deleting_trip_cascades_to_gear_food_planner_checklist_items_and_n
     session.add_all(
         [
             Gear(category="shelter", weight=1.0, quantity=1, trip_id=trip.id),
-            FoodPlanner(trip_id=trip.id),
             TripNote(content="Bring extra socks.", trip_id=trip.id),
         ]
     )
@@ -234,11 +233,8 @@ async def test_deleting_trip_cascades_to_gear_food_planner_checklist_items_and_n
 async def test_deleting_food_planner_cascades_to_trip_food(session: AsyncSession) -> None:
     user = await _make_user(session, "cascade-food@example.com")
     trip = await _make_trip(session, user)
-
-    planner = FoodPlanner(trip_id=trip.id)
-    session.add(planner)
-    await session.commit()
-    await session.refresh(planner)
+    planner = trip.food_plan
+    assert planner is not None
 
     session.add(
         TripFood(
