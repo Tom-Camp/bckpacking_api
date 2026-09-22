@@ -73,7 +73,7 @@ class UserRead(BaseModel):
 
     id: uuid.UUID
     email: str
-    username: str | None = None
+    username: str
     first_name: str | None = None
     last_name: str | None = None
     picture: str | None = None
@@ -83,6 +83,15 @@ class UserRead(BaseModel):
     last_login: datetime | None = None
     created_at: datetime
     updated_at: datetime
+
+
+class UserPublic(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    username: str
+    first_name: str | None = None
+    last_name: str | None = None
+    picture: str | None = None
 
 
 class TokenResponse(BaseModel):

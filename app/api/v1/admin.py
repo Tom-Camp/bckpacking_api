@@ -1,7 +1,7 @@
 import logging
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
@@ -27,6 +27,18 @@ async def list_users(
         query = query.where(User.status == filter_status)
     result = await session.execute(query)
     return [UserRead.model_validate(u) for u in result.scalars().all()]
+
+
+@router.get("/users/{user_id}", response_model=UserRead)
+async def get_user(
+    user_id: uuid.UUID,
+    _: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+) -> UserRead:
+    user = await user_service.get_user(session, user_id)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    return UserRead.model_validate(user)
 
 
 @router.patch("/users/{user_id}/approve", response_model=UserRead)
@@ -67,3 +79,18 @@ async def set_user_role(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     user = await user_service.set_role(session, user, data.role)
     return UserRead.model_validate(user)
+
+
+@router.delete("/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_user(
+    user_id: uuid.UUID,
+    admin: User = Depends(require_admin),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    if admin.id == user_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot delete your own account")
+    user = await user_service.get_user(session, user_id)
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    await user_service.delete_user(session, user)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
