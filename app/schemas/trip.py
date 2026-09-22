@@ -19,12 +19,10 @@ class TripCreate(BaseModel):
     end_date: datetime | None = None
     start_trailhead: str | None = None
     end_trailhead: str | None = None
-    total_distance: int
+    total_distance: int | None = None
     elevation_gain: int | None = None
     map_link: str | None = None
     emergency_contact: str | None = None
-    permit_required: bool = False
-    permit_details: str | None = None
 
 
 class TripUpdate(BaseModel):
@@ -40,8 +38,6 @@ class TripUpdate(BaseModel):
     elevation_gain: int | None = None
     map_link: str | None = None
     emergency_contact: str | None = None
-    permit_required: bool | None = None
-    permit_details: str | None = None
 
 
 class GearCreate(BaseModel):
@@ -176,12 +172,10 @@ class TripRead(BaseModel):
     end_date: datetime | None
     start_trailhead: str | None
     end_trailhead: str | None
-    total_distance: int
+    total_distance: int | None
     elevation_gain: int | None
     map_link: str | None
     emergency_contact: str | None
-    permit_required: bool
-    permit_details: str | None
     food_plan: FoodPlannerRead | None
     gear_list: list[GearRead]
     checklist_items: list[ChecklistItemRead]

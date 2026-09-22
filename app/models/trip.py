@@ -14,6 +14,7 @@ if TYPE_CHECKING:
 
 
 class ChecklistItemKey(str, Enum):
+    PERMIT_REQUIRED = "permit_required"
     WATER_SOURCES = "water_sources"
     RESUPPLY_POINTS = "resupply_points"
     SHUTTLE_SCHEDULED = "shuttle_scheduled"
@@ -109,12 +110,10 @@ class Trip(ModelBase, table=True):
     end_date: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True))
     start_trailhead: str | None = Field(default=None)
     end_trailhead: str | None = Field(default=None)
-    total_distance: int
+    total_distance: int | None = Field(default=None)
     elevation_gain: int | None = Field(default=None)
     map_link: str | None = Field(default=None)
     emergency_contact: str | None = Field(default=None)
-    permit_required: bool = Field(default=False)
-    permit_details: str | None = Field(default=None)
 
     user_id: UUID = Field(foreign_key="user.id", ondelete="CASCADE")
     user: "User" = Relationship(back_populates="trips", sa_relationship_kwargs={"lazy": "raise_on_sql"})

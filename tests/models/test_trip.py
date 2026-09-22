@@ -42,23 +42,12 @@ def test_total_distance_is_required() -> None:
         Trip.model_validate({"name": "No distance"})
 
 
-async def test_omitting_total_distance_violates_not_null_at_the_db_level(session: AsyncSession) -> None:
-    user = await _make_user(session, "notnull@example.com")
-    trip = Trip(name="No distance", user_id=user.id)  # type: ignore[call-arg]
-    trip.total_distance = None  # type: ignore[assignment]
-    session.add(trip)
-
-    with pytest.raises(IntegrityError):
-        await session.commit()
-
-
 async def test_trip_defaults(session: AsyncSession) -> None:
     user = await _make_user(session)
     trip = await _make_trip(session, user, name="Wonderland Trail", total_distance=93)
 
     assert trip.measurements == Unit.IMPERIAL
     assert trip.trip_type == TripType.LOOP
-    assert trip.permit_required is False
     assert {item.item for item in trip.checklist_items} == set(ChecklistItemKey)
     assert all(item.checked is False and item.details is None for item in trip.checklist_items)
     assert trip.food_plan is not None

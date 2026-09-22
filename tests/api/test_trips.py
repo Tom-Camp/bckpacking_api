@@ -20,20 +20,13 @@ async def test_create_trip_seeds_checklist_and_food_plan(
     assert trip["name"] == "Wonderland Trail"
     assert trip["measurements"] == "imperial"
     assert trip["trip_type"] == "loop"
-    assert len(trip["checklist_items"]) == 8
+    assert len(trip["checklist_items"]) == 9
     assert all(item["checked"] is False for item in trip["checklist_items"])
     assert trip["food_plan"] is not None
     assert trip["food_plan"]["target_calories"] == 0
     assert trip["food_plan"]["food"] == []
     assert trip["gear_list"] == []
     assert trip["notes"] == []
-
-
-async def test_create_trip_requires_total_distance(
-    client: AsyncClient, auth_headers: dict[str, str]
-) -> None:
-    response = await client.post("/api/v1/trips", json={"name": "No distance"}, headers=auth_headers)
-    assert response.status_code == 422
 
 
 async def test_list_trips_is_scoped_to_owner(
@@ -69,15 +62,14 @@ async def test_update_trip(client: AsyncClient, auth_headers: dict[str, str]) ->
 
     response = await client.patch(
         f"/api/v1/trips/{trip['id']}",
-        json={"total_distance": 100, "permit_required": True},
+        json={"total_distance": 100, "name": "Wonderful Trail"},
         headers=auth_headers,
     )
 
     assert response.status_code == 200
     body = response.json()
     assert body["total_distance"] == 100
-    assert body["permit_required"] is True
-    assert body["name"] == "Wonderland Trail"
+    assert body["name"] == "Wonderful Trail"
 
 
 async def test_delete_trip(client: AsyncClient, auth_headers: dict[str, str]) -> None:
