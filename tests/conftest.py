@@ -2,7 +2,7 @@ import os
 from collections.abc import AsyncGenerator
 
 import pytest_asyncio
-from sqlalchemy import event
+from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool, StaticPool
 from sqlmodel import SQLModel
@@ -33,8 +33,13 @@ async def engine() -> AsyncGenerator[AsyncEngine]:
         test_engine = create_async_engine(TEST_DATABASE_URL, poolclass=NullPool)
 
     async with test_engine.begin() as conn:
-        # drop_all first so a previous run that crashed mid-test can't leak rows into this one
-        await conn.run_sync(SQLModel.metadata.drop_all)
+        if test_engine.dialect.name == "postgresql":
+            # Reset the whole schema rather than drop_all(): drop_all only knows today's tables, so a
+            # table left over from an older schema (still referencing trip/user) would block it.
+            await conn.execute(text("DROP SCHEMA public CASCADE"))
+            await conn.execute(text("CREATE SCHEMA public"))
+        else:
+            await conn.run_sync(SQLModel.metadata.drop_all)
         await conn.run_sync(SQLModel.metadata.create_all)
 
     yield test_engine

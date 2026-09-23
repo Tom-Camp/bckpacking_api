@@ -5,12 +5,13 @@ import annotated_types
 import pytest
 from pydantic import BaseModel
 
+from app.schemas import gear as gear_schemas
 from app.schemas import trip as trip_schemas
 from app.schemas import user as user_schemas
 
 REQUEST_SCHEMAS = [
     obj
-    for module in (trip_schemas, user_schemas)
+    for module in (gear_schemas, trip_schemas, user_schemas)
     for name, obj in vars(module).items()
     if isinstance(obj, type)
     and issubclass(obj, BaseModel)
@@ -26,7 +27,12 @@ def _is_numeric(annotation: object) -> bool:
 
 
 def test_request_schemas_found() -> None:
-    assert {s.__name__ for s in REQUEST_SCHEMAS} >= {"TripCreate", "GearUpdate", "UserUpdate"}
+    assert {s.__name__ for s in REQUEST_SCHEMAS} >= {
+        "TripCreate",
+        "GearItemUpdate",
+        "TripGearUpdate",
+        "UserUpdate",
+    }
 
 
 @pytest.mark.parametrize("schema", REQUEST_SCHEMAS, ids=lambda s: s.__name__)

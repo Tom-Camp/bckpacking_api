@@ -12,19 +12,20 @@ from app.schemas.trip import (
     ChecklistItemUpdate,
     FoodPlannerRead,
     FoodPlannerUpdate,
-    GearCreate,
-    GearRead,
-    GearUpdate,
     TripCreate,
     TripFoodCreate,
     TripFoodRead,
     TripFoodUpdate,
+    TripGearCreate,
+    TripGearRead,
+    TripGearUpdate,
     TripNoteCreate,
     TripNoteRead,
     TripNoteUpdate,
     TripRead,
     TripUpdate,
 )
+from app.services import gear as gear_service
 from app.services import trip as trip_service
 
 router = APIRouter(prefix="/trips", tags=["trips"])
@@ -86,40 +87,57 @@ async def delete_trip(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.post("/{trip_id}/gear", response_model=GearRead, status_code=status.HTTP_201_CREATED)
-async def add_gear(
-    data: GearCreate,
+@router.post("/{trip_id}/gear", response_model=TripGearRead, status_code=status.HTTP_201_CREATED)
+async def add_trip_gear(
+    data: TripGearCreate,
     trip: Trip = Depends(get_owned_trip),
     session: AsyncSession = Depends(get_session),
-) -> GearRead:
-    gear = await trip_service.add_gear(session, trip.id, data)
-    return GearRead.model_validate(gear)
-
-
-@router.patch("/{trip_id}/gear/{gear_id}", response_model=GearRead)
-async def update_gear(
-    gear_id: uuid.UUID,
-    data: GearUpdate,
-    trip: Trip = Depends(get_owned_trip),
-    session: AsyncSession = Depends(get_session),
-) -> GearRead:
-    gear = await trip_service.get_gear(session, trip.id, gear_id)
-    if not gear:
+) -> TripGearRead:
+    item = await gear_service.get_item(session, trip.user_id, data.gear_item_id)
+    if not item:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gear item not found")
-    gear = await trip_service.update_gear(session, gear, data)
-    return GearRead.model_validate(gear)
+    trip_gear = await trip_service.add_trip_gear(session, trip.id, item, data)
+    return TripGearRead.model_validate(trip_gear)
 
 
-@router.delete("/{trip_id}/gear/{gear_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_gear(
-    gear_id: uuid.UUID,
+@router.post("/{trip_id}/gear/copy-from/{source_trip_id}", response_model=list[TripGearRead])
+async def copy_trip_gear(
+    source_trip_id: uuid.UUID,
+    trip: Trip = Depends(get_owned_trip),
+    session: AsyncSession = Depends(get_session),
+) -> list[TripGearRead]:
+    source = await trip_service.get_trip(session, source_trip_id)
+    if not source or source.user_id != trip.user_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Source trip not found")
+    gear = await trip_service.copy_trip_gear(session, trip, source)
+    return [TripGearRead.model_validate(tg) for tg in gear]
+
+
+@router.patch("/{trip_id}/gear/{trip_gear_id}", response_model=TripGearRead)
+async def update_trip_gear(
+    trip_gear_id: uuid.UUID,
+    data: TripGearUpdate,
+    trip: Trip = Depends(get_owned_trip),
+    session: AsyncSession = Depends(get_session),
+) -> TripGearRead:
+    trip_gear = await trip_service.get_trip_gear(session, trip.id, trip_gear_id)
+    if not trip_gear:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gear not found on this trip")
+    trip_gear = await trip_service.update_trip_gear(session, trip_gear, data)
+    return TripGearRead.model_validate(trip_gear)
+
+
+@router.delete("/{trip_id}/gear/{trip_gear_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_trip_gear(
+    trip_gear_id: uuid.UUID,
     trip: Trip = Depends(get_owned_trip),
     session: AsyncSession = Depends(get_session),
 ) -> Response:
-    gear = await trip_service.get_gear(session, trip.id, gear_id)
-    if not gear:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gear item not found")
-    await trip_service.delete_gear(session, gear)
+    """Remove the item from this trip; it stays in the closet."""
+    trip_gear = await trip_service.get_trip_gear(session, trip.id, trip_gear_id)
+    if not trip_gear:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gear not found on this trip")
+    await trip_service.delete_trip_gear(session, trip_gear)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

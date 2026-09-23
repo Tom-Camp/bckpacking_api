@@ -1,13 +1,14 @@
 import pytest
 from sqlmodel import SQLModel
 
-from app.models import FoodPlanner, Gear, Trip, TripChecklistItem, TripFood, TripNote, User
+from app.models import FoodPlanner, GearItem, Trip, TripChecklistItem, TripFood, TripGear, TripNote, User
 from app.schemas.base import UpdateSchema
+from app.schemas.gear import GearItemUpdate
 from app.schemas.trip import (
     ChecklistItemUpdate,
     FoodPlannerUpdate,
-    GearUpdate,
     TripFoodUpdate,
+    TripGearUpdate,
     TripNoteUpdate,
     TripUpdate,
 )
@@ -15,7 +16,8 @@ from app.schemas.user import UserUpdate
 
 UPDATE_SCHEMAS: list[tuple[type[UpdateSchema], type[SQLModel]]] = [
     (TripUpdate, Trip),
-    (GearUpdate, Gear),
+    (GearItemUpdate, GearItem),
+    (TripGearUpdate, TripGear),
     (TripNoteUpdate, TripNote),
     (ChecklistItemUpdate, TripChecklistItem),
     (FoodPlannerUpdate, FoodPlanner),

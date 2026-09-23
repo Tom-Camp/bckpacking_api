@@ -25,18 +25,21 @@ async def _trip(client: AsyncClient, headers: Headers) -> str:
     return f"/api/v1/trips/{trip['id']}"
 
 
-async def _gear(client: AsyncClient, headers: Headers) -> str:
-    trip = await _create_trip(client, headers)
+async def _gear_item(client: AsyncClient, headers: Headers) -> str:
     response = await client.post(
-        f"/api/v1/trips/{trip['id']}/gear",
-        json={
-            "gear_name": "Tent",
-            "category": "shelter",
-            "weight_g": 1200,
-            "quantity": 1,
-            "notes": "Stakes",
-        },
+        "/api/v1/gear",
+        json={"name": "Tent", "category": "shelter", "weight_g": 1200, "notes": "Stakes in side pocket"},
         headers=headers,
+    )
+    assert response.status_code == 201
+    return f"/api/v1/gear/{response.json()['id']}"
+
+
+async def _trip_gear(client: AsyncClient, headers: Headers) -> str:
+    trip = await _create_trip(client, headers)
+    item = await client.post("/api/v1/gear", json={"name": "Tent", "category": "shelter"}, headers=headers)
+    response = await client.post(
+        f"/api/v1/trips/{trip['id']}/gear", json={"gear_item_id": item.json()["id"]}, headers=headers
     )
     assert response.status_code == 201
     return f"/api/v1/trips/{trip['id']}/gear/{response.json()['id']}"
@@ -92,7 +95,8 @@ class Case:
 
 CASES = [
     Case("trip", _trip, {"description": "Clockwise"}, non_nullable="name", nullable="end_trailhead"),
-    Case("gear", _gear, {"quantity": 2}, non_nullable="gear_name", nullable="notes"),
+    Case("gear-item", _gear_item, {"weight_g": 1100}, non_nullable="name", nullable="notes"),
+    Case("trip-gear", _trip_gear, {"packed": True}, non_nullable="quantity"),
     Case("note", _note, {"content": "Bring more socks."}, non_nullable="content"),
     Case("checklist", _checklist_item, {"checked": True}, non_nullable="checked", nullable="details"),
     Case("food-plan", _food_plan, {"target_food_g_per_day": 900}, non_nullable="target_kcal_per_day"),

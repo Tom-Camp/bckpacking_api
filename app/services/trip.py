@@ -1,18 +1,28 @@
 import uuid
 
+from fastapi import HTTPException, status
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlmodel import select
+from sqlmodel import col, select
 
-from app.models.trip import ChecklistItemKey, FoodPlanner, Gear, Trip, TripChecklistItem, TripFood, TripNote
+from app.models.gear import GearItem
+from app.models.trip import (
+    ChecklistItemKey,
+    FoodPlanner,
+    Trip,
+    TripChecklistItem,
+    TripFood,
+    TripGear,
+    TripNote,
+)
 from app.schemas.trip import (
     ChecklistItemUpdate,
     FoodPlannerUpdate,
-    GearCreate,
-    GearUpdate,
     TripCreate,
     TripFoodCreate,
     TripFoodUpdate,
+    TripGearCreate,
+    TripGearUpdate,
     TripNoteCreate,
     TripNoteUpdate,
     TripUpdate,
@@ -35,7 +45,10 @@ async def create_trip(session: AsyncSession, user_id: uuid.UUID, data: TripCreat
 async def list_trips(session: AsyncSession, user_id: uuid.UUID) -> list[Trip]:
     # noinspection PyTypeChecker
     result = await session.execute(
-        select(Trip).where(Trip.user_id == user_id).order_by(Trip.created_at)  # type: ignore[arg-type]
+        select(Trip)
+        .where(Trip.user_id == user_id)
+        .order_by(Trip.created_at)  # type: ignore[arg-type]
+        .execution_options(populate_existing=True)
     )
     return list(result.scalars().all())
 
@@ -46,7 +59,11 @@ async def get_trip(session: AsyncSession, trip_id: uuid.UUID) -> Trip | None:
     # in the session's identity map with those relationships unset (e.g. right after
     # create_trip in the same session) — session.get() would short-circuit on the identity
     # map hit and skip loading them, and accessing them later would need sync IO (MissingGreenlet).
-    result = await session.execute(select(Trip).where(Trip.id == trip_id))
+    # populate_existing re-runs those loaders for an already-loaded Trip too, so children added or
+    # removed earlier in the same session (e.g. copy_trip_gear) aren't served from a stale collection.
+    result = await session.execute(
+        select(Trip).where(Trip.id == trip_id).execution_options(populate_existing=True)
+    )
     return result.scalar_one_or_none()
 
 
@@ -77,26 +94,61 @@ async def delete_trip(session: AsyncSession, trip: Trip) -> None:
     await session.commit()
 
 
-async def add_gear(session: AsyncSession, trip_id: uuid.UUID, data: GearCreate) -> Gear:
-    gear = Gear(trip_id=trip_id, **data.model_dump())
-    session.add(gear)
-    await session.commit()
-    await session.refresh(gear)
-    return gear
-
-
-async def get_gear(session: AsyncSession, trip_id: uuid.UUID, gear_id: uuid.UUID) -> Gear | None:
-    result = await session.execute(select(Gear).where(Gear.id == gear_id, Gear.trip_id == trip_id))
+async def get_trip_gear(
+    session: AsyncSession, trip_id: uuid.UUID, trip_gear_id: uuid.UUID
+) -> TripGear | None:
+    result = await session.execute(
+        select(TripGear).where(TripGear.id == trip_gear_id, TripGear.trip_id == trip_id)
+    )
     return result.scalar_one_or_none()
 
 
-async def update_gear(session: AsyncSession, gear: Gear, data: GearUpdate) -> Gear:
-    return await save_updates(session, gear, data)
+async def list_trip_gear(session: AsyncSession, trip_id: uuid.UUID) -> list[TripGear]:
+    result = await session.execute(
+        select(TripGear).where(TripGear.trip_id == trip_id).order_by(col(TripGear.created_at))
+    )
+    return list(result.scalars().all())
 
 
-async def delete_gear(session: AsyncSession, gear: Gear) -> None:
-    await session.delete(gear)
+async def add_trip_gear(
+    session: AsyncSession, trip_id: uuid.UUID, item: GearItem, data: TripGearCreate
+) -> TripGear:
+    """Pack a closet item for a trip. The caller checks the item belongs to the trip's owner."""
+    if item.archived_at is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Gear item is archived")
+    existing = await session.execute(
+        select(TripGear).where(TripGear.trip_id == trip_id, TripGear.gear_item_id == item.id)
+    )
+    if existing.scalar_one_or_none() is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Gear item is already on this trip")
+    trip_gear = TripGear(trip_id=trip_id, **data.model_dump())
+    session.add(trip_gear)
     await session.commit()
+    await session.refresh(trip_gear)
+    return trip_gear
+
+
+async def update_trip_gear(session: AsyncSession, trip_gear: TripGear, data: TripGearUpdate) -> TripGear:
+    return await save_updates(session, trip_gear, data)
+
+
+async def delete_trip_gear(session: AsyncSession, trip_gear: TripGear) -> None:
+    await session.delete(trip_gear)
+    await session.commit()
+
+
+async def copy_trip_gear(session: AsyncSession, target: Trip, source: Trip) -> list[TripGear]:
+    """Add the source trip's gear to the target trip, unpacked.
+
+    Skips archived items and items the target already has, so copying is safe to repeat.
+    """
+    already_on_target = {tg.gear_item_id for tg in await list_trip_gear(session, target.id)}
+    for tg in await list_trip_gear(session, source.id):
+        if tg.gear_item_id in already_on_target or tg.gear_item.archived_at is not None:
+            continue
+        session.add(TripGear(trip_id=target.id, gear_item_id=tg.gear_item_id, quantity=tg.quantity))
+    await session.commit()
+    return await list_trip_gear(session, target.id)
 
 
 async def add_note(session: AsyncSession, trip_id: uuid.UUID, data: TripNoteCreate) -> TripNote:

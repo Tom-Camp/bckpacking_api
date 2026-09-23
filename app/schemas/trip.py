@@ -5,10 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validat
 
 from app.models.trip import ChecklistItemKey, Meal, TripType
 from app.schemas.base import UpdateSchema
-
-
-def _lowercase_category(v: str | None) -> str | None:
-    return v.lower() if isinstance(v, str) else v
+from app.schemas.gear import GearItemRead
 
 
 def check_date_order(start_date: date | None, end_date: date | None) -> None:
@@ -52,44 +49,27 @@ class TripUpdate(UpdateSchema):
     emergency_contact: str | None = None
 
 
-class GearCreate(BaseModel):
-    gear_name: str
-    category: str
-    weight_g: float = Field(default=0.0, ge=0)
-    quantity: int = Field(default=0, ge=0)
-    notes: str | None = None
-
-    @field_validator("category")
-    @classmethod
-    def lowercase_category(cls, v: str) -> str:
-        return v.lower()
+class TripGearCreate(BaseModel):
+    gear_item_id: uuid.UUID
+    quantity: int = Field(default=1, ge=1)
+    packed: bool = False
 
 
-class GearUpdate(UpdateSchema):
-    non_nullable = frozenset({"gear_name", "category", "weight_g", "quantity"})
+class TripGearUpdate(UpdateSchema):
+    non_nullable = frozenset({"quantity", "packed"})
 
-    gear_name: str | None = None
-    category: str | None = None
-    weight_g: float | None = Field(default=None, ge=0)
-    quantity: int | None = Field(default=None, ge=0)
-    notes: str | None = None
-
-    @field_validator("category")
-    @classmethod
-    def lowercase_category(cls, v: str | None) -> str | None:
-        return _lowercase_category(v)
+    quantity: int | None = Field(default=None, ge=1)
+    packed: bool | None = None
 
 
-class GearRead(BaseModel):
+class TripGearRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
-    gear_name: str
-    category: str
-    weight_g: float
-    quantity: int
-    notes: str | None
     trip_id: uuid.UUID
+    gear_item: GearItemRead
+    quantity: int
+    packed: bool
     created_at: datetime
     updated_at: datetime
 
@@ -201,7 +181,7 @@ class TripRead(BaseModel):
     map_link: str | None
     emergency_contact: str | None
     food_plan: FoodPlannerRead | None
-    gear_list: list[GearRead]
+    gear_list: list[TripGearRead]
     checklist_items: list[ChecklistItemRead]
     notes: list[TripNoteRead]
     created_at: datetime

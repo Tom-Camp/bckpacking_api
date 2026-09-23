@@ -3,11 +3,11 @@ from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from pydantic import field_validator
-from sqlalchemy import CheckConstraint, UniqueConstraint, event
+from sqlalchemy import CheckConstraint, Column, ForeignKey, UniqueConstraint, event
 from sqlmodel import Field, Relationship
 
 from app.models.base import ModelBase, enum_field
+from app.models.gear import GearItem
 
 if TYPE_CHECKING:
     from app.models.user import User
@@ -61,21 +61,22 @@ class FoodPlanner(ModelBase, table=True):
     trip: Trip = Relationship(back_populates="food_plan", sa_relationship_kwargs={"lazy": "raise_on_sql"})
 
 
-class Gear(ModelBase, table=True):
-    gear_name: str
-    category: str
-    weight_g: float = Field(default=0.0)
-    quantity: int = Field(default=0)
-    notes: str | None = Field(default=None)
-    trip_id: UUID = Field(foreign_key="trip.id", ondelete="CASCADE")
-    trip: Trip = Relationship(back_populates="gear_list", sa_relationship_kwargs={"lazy": "raise_on_sql"})
+class TripGear(ModelBase, table=True):
+    """A closet GearItem packed for a trip. Weight/name/kind live on the item, so edits apply to every trip."""
 
-    @field_validator("category", mode="before")
-    @classmethod
-    def lowercase_category(cls, v: object) -> object:
-        if isinstance(v, str):
-            return v.lower()
-        return v
+    __table_args__ = (UniqueConstraint("trip_id", "gear_item_id"),)
+
+    trip_id: UUID = Field(foreign_key="trip.id", ondelete="CASCADE")
+    # No ON DELETE: closet items are archived, never deleted, while a trip still uses them. Deferred to
+    # commit so deleting a user works: Postgres checks a non-deferred FK as soon as the user -> gearitem
+    # cascade runs, before the user -> trip -> tripgear cascade has removed the rows pointing at it.
+    gear_item_id: UUID = Field(
+        sa_column=Column(ForeignKey("gearitem.id", deferrable=True, initially="DEFERRED"), nullable=False)
+    )
+    quantity: int = Field(default=1)
+    packed: bool = Field(default=False)
+    gear_item: GearItem = Relationship(sa_relationship_kwargs={"lazy": "selectin"})
+    trip: Trip = Relationship(back_populates="gear_list", sa_relationship_kwargs={"lazy": "raise_on_sql"})
 
 
 class TripChecklistItem(ModelBase, table=True):
@@ -121,7 +122,7 @@ class Trip(ModelBase, table=True):
         passive_deletes=True,
         sa_relationship_kwargs={"lazy": "selectin", "cascade": "all, delete-orphan"},
     )
-    gear_list: list[Gear] = Relationship(
+    gear_list: list[TripGear] = Relationship(
         back_populates="trip", passive_deletes=True, sa_relationship_kwargs={"lazy": "selectin"}
     )
     checklist_items: list[TripChecklistItem] = Relationship(

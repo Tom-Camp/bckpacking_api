@@ -10,7 +10,7 @@ from sqlalchemy.orm import selectinload
 from sqlmodel import col
 
 from app.auth.passwords import hash_password
-from app.models import FoodPlanner, Gear, Trip, TripChecklistItem, TripFood, TripNote, User
+from app.models import FoodPlanner, GearItem, Trip, TripChecklistItem, TripFood, TripGear, TripNote, User
 from app.models.trip import ChecklistItemKey, Meal, TripType
 
 hashed_password: str = hash_password("r1GRB3$ZB0*mbwymrJuJcdUTtdqESdf%AuD")
@@ -87,30 +87,18 @@ async def test_checklist_items_are_unique_per_trip_and_item(session: AsyncSessio
         await session.commit()
 
 
-async def test_gear_category_is_lowercased(session: AsyncSession) -> None:
-    # Table classes bypass Pydantic validation on direct __init__, so the validator only
-    # runs via model_validate() (how FastAPI builds models from request payloads).
-    user = await _make_user(session, "gear@example.com")
-    trip = await _make_trip(session, user)
-
-    gear = Gear.model_validate(
-        {"gear_name": "Tent", "category": "SHELTER", "weight_g": 1200, "quantity": 1, "trip_id": trip.id}
-    )
-    session.add(gear)
-    await session.commit()
-    await session.refresh(gear)
-
-    assert gear.category == "shelter"
-
-
-async def test_trip_gear_list_relationship(session: AsyncSession) -> None:
+async def test_trip_gear_list_loads_closet_items(session: AsyncSession) -> None:
     user = await _make_user(session, "gearlist@example.com")
     trip = await _make_trip(session, user)
+    tent = GearItem(user_id=user.id, name="Tent", category="shelter", weight_g=1200)
+    stove = GearItem(user_id=user.id, name="Stove", category="cook", weight_g=500)
+    session.add_all([tent, stove])
+    await session.commit()
 
     session.add_all(
         [
-            Gear(gear_name="Tent", category="shelter", weight_g=1200, quantity=1, trip_id=trip.id),
-            Gear(gear_name="Stove", category="cook", weight_g=500, quantity=1, trip_id=trip.id),
+            TripGear(trip_id=trip.id, gear_item_id=tent.id),
+            TripGear(trip_id=trip.id, gear_item_id=stove.id, quantity=2),
         ]
     )
     await session.commit()
@@ -120,7 +108,7 @@ async def test_trip_gear_list_relationship(session: AsyncSession) -> None:
     )
     loaded_trip = result.scalar_one()
 
-    assert {g.category for g in loaded_trip.gear_list} == {"shelter", "cook"}
+    assert {(tg.gear_item.name, tg.quantity) for tg in loaded_trip.gear_list} == {("Tent", 1), ("Stove", 2)}
 
 
 async def test_trip_notes_relationship(session: AsyncSession) -> None:
@@ -200,10 +188,13 @@ async def test_deleting_trip_cascades_to_gear_food_planner_checklist_items_and_n
 ) -> None:
     user = await _make_user(session, "cascade@example.com")
     trip = await _make_trip(session, user)
+    tent = GearItem(user_id=user.id, name="Tent", category="shelter", weight_g=1000)
+    session.add(tent)
+    await session.commit()
 
     session.add_all(
         [
-            Gear(gear_name="Tent", category="shelter", weight_g=1000, quantity=1, trip_id=trip.id),
+            TripGear(trip_id=trip.id, gear_item_id=tent.id),
             TripNote(content="Bring extra socks.", trip_id=trip.id),
         ]
     )
@@ -212,12 +203,14 @@ async def test_deleting_trip_cascades_to_gear_food_planner_checklist_items_and_n
     await session.delete(trip)
     await session.commit()
 
-    remaining_gear = (await session.execute(select(Gear))).scalars().all()
+    remaining_gear = (await session.execute(select(TripGear))).scalars().all()
+    remaining_closet = (await session.execute(select(GearItem))).scalars().all()
     remaining_planners = (await session.execute(select(FoodPlanner))).scalars().all()
     remaining_checklist_items = (await session.execute(select(TripChecklistItem))).scalars().all()
     remaining_notes = (await session.execute(select(TripNote))).scalars().all()
 
     assert remaining_gear == []
+    assert [i.name for i in remaining_closet] == ["Tent"]  # the closet item outlives the trip
     assert remaining_planners == []
     assert remaining_checklist_items == []
     assert remaining_notes == []

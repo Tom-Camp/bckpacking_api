@@ -83,51 +83,6 @@ async def test_delete_trip(client: AsyncClient, auth_headers: dict[str, str]) ->
     assert get_response.status_code == 404
 
 
-async def test_gear_add_update_delete(client: AsyncClient, auth_headers: dict[str, str]) -> None:
-    trip = await _create_trip(client, auth_headers)
-
-    add_response = await client.post(
-        f"/api/v1/trips/{trip['id']}/gear",
-        json={"gear_name": "Tent", "category": "SHELTER", "weight_g": 1200, "quantity": 1},
-        headers=auth_headers,
-    )
-    assert add_response.status_code == 201
-    gear = add_response.json()
-    assert gear["gear_name"] == "Tent"
-    assert gear["category"] == "shelter"
-
-    update_response = await client.patch(
-        f"/api/v1/trips/{trip['id']}/gear/{gear['id']}",
-        json={"gear_name": "Tarp", "quantity": 2},
-        headers=auth_headers,
-    )
-    assert update_response.status_code == 200
-    assert update_response.json()["gear_name"] == "Tarp"
-    assert update_response.json()["quantity"] == 2
-
-    delete_response = await client.delete(
-        f"/api/v1/trips/{trip['id']}/gear/{gear['id']}", headers=auth_headers
-    )
-    assert delete_response.status_code == 204
-
-    trip_after = await client.get(f"/api/v1/trips/{trip['id']}", headers=auth_headers)
-    assert trip_after.json()["gear_list"] == []
-
-
-async def test_gear_not_found_for_other_users_trip(
-    client: AsyncClient, auth_headers: dict[str, str], other_auth_headers: dict[str, str]
-) -> None:
-    trip = await _create_trip(client, auth_headers)
-
-    response = await client.post(
-        f"/api/v1/trips/{trip['id']}/gear",
-        json={"gear_name": "Tent", "category": "shelter"},
-        headers=other_auth_headers,
-    )
-
-    assert response.status_code == 403
-
-
 async def test_notes_add_update_delete(client: AsyncClient, auth_headers: dict[str, str]) -> None:
     trip = await _create_trip(client, auth_headers)
 
@@ -272,9 +227,10 @@ async def test_update_trip_can_move_both_dates_past_old_end_date(
     assert (response.json()["start_date"], response.json()["end_date"]) == ("2026-09-10", "2026-09-12")
 
 
-async def _gear_url(client: AsyncClient, headers: dict[str, str], trip_id: str) -> str:
+async def _trip_gear_url(client: AsyncClient, headers: dict[str, str], trip_id: str) -> str:
+    item = await client.post("/api/v1/gear", json={"name": "Tent", "category": "shelter"}, headers=headers)
     response = await client.post(
-        f"/api/v1/trips/{trip_id}/gear", json={"gear_name": "Tent", "category": "shelter"}, headers=headers
+        f"/api/v1/trips/{trip_id}/gear", json={"gear_item_id": item.json()["id"]}, headers=headers
     )
     return f"/api/v1/trips/{trip_id}/gear/{response.json()['id']}"
 
@@ -294,10 +250,8 @@ async def _food_item_url(client: AsyncClient, headers: dict[str, str], trip_id: 
         ("POST", "/api/v1/trips", TRIP_PAYLOAD | {"total_distance_m": -1}, "total_distance_m"),
         ("POST", "/api/v1/trips", TRIP_PAYLOAD | {"elevation_gain_m": -1}, "elevation_gain_m"),
         ("PATCH", "{trip}", {"total_distance_m": -0.5}, "total_distance_m"),
-        ("POST", "{trip}/gear", {"gear_name": "Tent", "category": "shelter", "weight_g": -1}, "weight_g"),
-        ("POST", "{trip}/gear", {"gear_name": "Tent", "category": "shelter", "quantity": -1}, "quantity"),
-        ("PATCH", "{gear}", {"weight_g": -1}, "weight_g"),
-        ("PATCH", "{gear}", {"quantity": -1}, "quantity"),
+        ("POST", "/api/v1/gear", {"name": "Tent", "category": "shelter", "weight_g": -1}, "weight_g"),
+        ("PATCH", "{trip_gear}", {"quantity": 0}, "quantity"),
         (
             "POST",
             "{trip}/food-plan/items",
@@ -326,8 +280,8 @@ async def test_negative_numbers_are_rejected(
     trip = await _create_trip(client, auth_headers)
     trip_url = f"/api/v1/trips/{trip['id']}"
     urls = {"trip": trip_url}
-    if "{gear}" in path:
-        urls["gear"] = await _gear_url(client, auth_headers, trip["id"])
+    if "{trip_gear}" in path:
+        urls["trip_gear"] = await _trip_gear_url(client, auth_headers, trip["id"])
     if "{food}" in path:
         urls["food"] = await _food_item_url(client, auth_headers, trip["id"])
 
@@ -343,9 +297,7 @@ async def test_zero_is_allowed_for_weights_and_calories(
     trip = await _create_trip(client, auth_headers, total_distance_m=0, elevation_gain_m=0)
 
     gear = await client.post(
-        f"/api/v1/trips/{trip['id']}/gear",
-        json={"gear_name": "Permit", "category": "docs", "weight_g": 0, "quantity": 0},
-        headers=auth_headers,
+        "/api/v1/gear", json={"name": "Permit", "category": "docs", "weight_g": 0}, headers=auth_headers
     )
     food = await client.post(
         f"/api/v1/trips/{trip['id']}/food-plan/items",
