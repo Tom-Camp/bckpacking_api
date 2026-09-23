@@ -17,7 +17,10 @@ def _utcnow() -> datetime:
 def enum_field(enum_cls: type[Enum], default: Enum) -> Any:
     return Field(
         default=default,
-        sa_column=Column(SAEnum(enum_cls, values_callable=lambda x: [e.value for e in x]), nullable=False),
+        sa_column=Column(
+            SAEnum(enum_cls, native_enum=False, length=32, values_callable=lambda x: [e.value for e in x]),
+            nullable=False,
+        ),
     )
 
 
