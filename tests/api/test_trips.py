@@ -1,5 +1,6 @@
 from typing import Any, cast
 
+import pytest
 from httpx import AsyncClient
 
 TRIP_PAYLOAD = {"name": "Wonderland Trail", "total_distance": 93}
@@ -201,3 +202,71 @@ async def test_food_plan_update_and_items(client: AsyncClient, auth_headers: dic
 
     trip_after = await client.get(f"/api/v1/trips/{trip['id']}", headers=auth_headers)
     assert trip_after.json()["food_plan"]["food"] == []
+
+
+async def test_trip_dates_are_calendar_dates(client: AsyncClient, auth_headers: dict[str, str]) -> None:
+    trip = await _create_trip(client, auth_headers, start_date="2026-08-26", end_date="2026-08-26")
+
+    assert trip["start_date"] == "2026-08-26"
+    assert trip["end_date"] == "2026-08-26"
+
+
+async def test_create_trip_rejects_datetime_with_time(
+    client: AsyncClient, auth_headers: dict[str, str]
+) -> None:
+    response = await client.post(
+        "/api/v1/trips",
+        json=TRIP_PAYLOAD | {"start_date": "2026-08-26T22:00:00-04:00"},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 422
+
+
+async def test_create_trip_rejects_end_date_before_start_date(
+    client: AsyncClient, auth_headers: dict[str, str]
+) -> None:
+    response = await client.post(
+        "/api/v1/trips",
+        json=TRIP_PAYLOAD | {"start_date": "2026-08-26", "end_date": "2026-08-25"},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["loc"] == ["body", "end_date"]
+
+
+@pytest.mark.parametrize(
+    ("update", "bad_field"),
+    [
+        ({"end_date": "2026-08-25"}, "end_date"),
+        ({"start_date": "2026-08-30"}, "start_date"),
+        ({"start_date": "2026-08-30", "end_date": "2026-08-29"}, "end_date"),
+    ],
+)
+async def test_update_trip_rejects_dates_out_of_order_with_stored_values(
+    client: AsyncClient, auth_headers: dict[str, str], update: dict[str, str], bad_field: str
+) -> None:
+    trip = await _create_trip(client, auth_headers, start_date="2026-08-26", end_date="2026-08-29")
+
+    response = await client.patch(f"/api/v1/trips/{trip['id']}", json=update, headers=auth_headers)
+
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["loc"] == ["body", bad_field]
+    after = (await client.get(f"/api/v1/trips/{trip['id']}", headers=auth_headers)).json()
+    assert (after["start_date"], after["end_date"]) == ("2026-08-26", "2026-08-29")
+
+
+async def test_update_trip_can_move_both_dates_past_old_end_date(
+    client: AsyncClient, auth_headers: dict[str, str]
+) -> None:
+    trip = await _create_trip(client, auth_headers, start_date="2026-08-26", end_date="2026-08-29")
+
+    response = await client.patch(
+        f"/api/v1/trips/{trip['id']}",
+        json={"start_date": "2026-09-10", "end_date": "2026-09-12"},
+        headers=auth_headers,
+    )
+
+    assert response.status_code == 200
+    assert (response.json()["start_date"], response.json()["end_date"]) == ("2026-09-10", "2026-09-12")

@@ -1,8 +1,8 @@
 """initial schema
 
-Revision ID: 4b249131ce00
+Revision ID: bfd636596dfb
 Revises:
-Create Date: 2026-09-23 08:04:30.692390
+Create Date: 2026-09-23 08:10:29.609288
 
 """
 
@@ -14,7 +14,7 @@ import sqlmodel.sql.sqltypes
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "4b249131ce00"
+revision: str = "bfd636596dfb"
 down_revision: str | Sequence[str] | None = None
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
@@ -68,8 +68,8 @@ def upgrade() -> None:
             sa.Enum("loop", "out-and-back", "point-to-point", name="triptype", native_enum=False, length=32),
             nullable=False,
         ),
-        sa.Column("start_date", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("end_date", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("start_date", sa.Date(), nullable=True),
+        sa.Column("end_date", sa.Date(), nullable=True),
         sa.Column("start_trailhead", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
         sa.Column("end_trailhead", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
         sa.Column("total_distance", sa.Integer(), nullable=True),
@@ -77,6 +77,7 @@ def upgrade() -> None:
         sa.Column("map_link", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
         sa.Column("emergency_contact", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
         sa.Column("user_id", sa.Uuid(), nullable=False),
+        sa.CheckConstraint("end_date >= start_date", name="ck_trip_end_date_after_start_date"),
         sa.ForeignKeyConstraint(["user_id"], ["user.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )

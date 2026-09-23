@@ -1,7 +1,7 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, ValidationInfo, field_validator
 
 from app.models.trip import ChecklistItemKey, Meal, TripType, Unit
 from app.schemas.base import UpdateSchema
@@ -11,19 +11,30 @@ def _lowercase_category(v: str | None) -> str | None:
     return v.lower() if isinstance(v, str) else v
 
 
+def check_date_order(start_date: date | None, end_date: date | None) -> None:
+    if start_date is not None and end_date is not None and end_date < start_date:
+        raise ValueError("end_date must be on or after start_date")
+
+
 class TripCreate(BaseModel):
     name: str
     description: str | None = None
     measurements: Unit = Unit.IMPERIAL
     trip_type: TripType = TripType.LOOP
-    start_date: datetime | None = None
-    end_date: datetime | None = None
+    start_date: date | None = None
+    end_date: date | None = None
     start_trailhead: str | None = None
     end_trailhead: str | None = None
     total_distance: int | None = None
     elevation_gain: int | None = None
     map_link: str | None = None
     emergency_contact: str | None = None
+
+    @field_validator("end_date")
+    @classmethod
+    def end_date_not_before_start_date(cls, v: date | None, info: ValidationInfo) -> date | None:
+        check_date_order(info.data.get("start_date"), v)
+        return v
 
 
 class TripUpdate(UpdateSchema):
@@ -33,8 +44,8 @@ class TripUpdate(UpdateSchema):
     description: str | None = None
     measurements: Unit | None = None
     trip_type: TripType | None = None
-    start_date: datetime | None = None
-    end_date: datetime | None = None
+    start_date: date | None = None
+    end_date: date | None = None
     start_trailhead: str | None = None
     end_trailhead: str | None = None
     total_distance: int | None = None
@@ -184,8 +195,8 @@ class TripRead(BaseModel):
     description: str | None
     measurements: Unit
     trip_type: TripType
-    start_date: datetime | None
-    end_date: datetime | None
+    start_date: date | None
+    end_date: date | None
     start_trailhead: str | None
     end_trailhead: str | None
     total_distance: int | None

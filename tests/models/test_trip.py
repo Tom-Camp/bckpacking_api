@@ -1,3 +1,5 @@
+from datetime import date
+
 import pytest
 from pydantic import ValidationError
 from sqlalchemy import select
@@ -244,3 +246,13 @@ async def test_deleting_food_planner_cascades_to_trip_food(session: AsyncSession
     remaining_food = (await session.execute(select(TripFood))).scalars().all()
 
     assert remaining_food == []
+
+
+async def test_trip_end_date_before_start_date_violates_check_constraint(session: AsyncSession) -> None:
+    user = await _make_user(session, "dates@example.com")
+
+    session.add(
+        Trip(name="Backwards", user_id=user.id, start_date=date(2026, 8, 26), end_date=date(2026, 8, 25))
+    )
+    with pytest.raises(IntegrityError):
+        await session.commit()

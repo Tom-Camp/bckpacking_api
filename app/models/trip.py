@@ -1,10 +1,10 @@
-from datetime import datetime
+from datetime import date
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from pydantic import field_validator
-from sqlalchemy import Column, DateTime, UniqueConstraint, event
+from sqlalchemy import CheckConstraint, UniqueConstraint, event
 from sqlmodel import Field, Relationship
 
 from app.models.base import ModelBase, enum_field
@@ -101,14 +101,16 @@ class TripNote(ModelBase, table=True):
 
 
 class Trip(ModelBase, table=True):
+    # Backstop for the schema/service validation; NULLs pass, so either date may be unset.
+    __table_args__ = (CheckConstraint("end_date >= start_date", name="ck_trip_end_date_after_start_date"),)
+
     name: str = Field(...)
     description: str | None = Field(default=None)
     measurements: Unit = enum_field(Unit, Unit.IMPERIAL)
     trip_type: TripType = enum_field(TripType, TripType.LOOP)
-    start_date: datetime | None = Field(
-        default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
-    )
-    end_date: datetime | None = Field(default=None, sa_column=Column(DateTime(timezone=True), nullable=True))
+    # Calendar dates, not instants: a trip starts on "Aug 26" wherever the viewer is.
+    start_date: date | None = Field(default=None)
+    end_date: date | None = Field(default=None)
     start_trailhead: str | None = Field(default=None)
     end_trailhead: str | None = Field(default=None)
     total_distance: int | None = Field(default=None)

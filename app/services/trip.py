@@ -1,5 +1,6 @@
 import uuid
 
+from fastapi.exceptions import RequestValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
@@ -15,6 +16,7 @@ from app.schemas.trip import (
     TripNoteCreate,
     TripNoteUpdate,
     TripUpdate,
+    check_date_order,
 )
 from app.services.base import save_updates
 
@@ -49,6 +51,24 @@ async def get_trip(session: AsyncSession, trip_id: uuid.UUID) -> Trip | None:
 
 
 async def update_trip(session: AsyncSession, trip: Trip, data: TripUpdate) -> Trip:
+    # The request may carry only one of the dates, so check the order against the stored values.
+    sent = data.model_fields_set & {"start_date", "end_date"}
+    start_date = data.start_date if "start_date" in sent else trip.start_date
+    end_date = data.end_date if "end_date" in sent else trip.end_date
+    try:
+        check_date_order(start_date, end_date)
+    except ValueError as exc:
+        field = "end_date" if "end_date" in sent else "start_date"
+        raise RequestValidationError(
+            [
+                {
+                    "type": "value_error",
+                    "loc": ("body", field),
+                    "msg": f"Value error, {exc}",
+                    "input": getattr(data, field),
+                }
+            ]
+        ) from exc
     return await save_updates(session, trip, data)
 
 
