@@ -135,7 +135,7 @@ async def test_food_plan_update_and_items(client: AsyncClient, auth_headers: dic
 
     add_response = await client.post(
         f"/api/v1/trips/{trip['id']}/food-plan/items",
-        json={"day": "Day 1", "name": "Oatmeal", "weight_g": 100, "kcal": 400},
+        json={"day": 1, "name": "Oatmeal", "weight_g": 100, "kcal": 400},
         headers=auth_headers,
     )
     assert add_response.status_code == 201
@@ -238,7 +238,7 @@ async def _trip_gear_url(client: AsyncClient, headers: dict[str, str], trip_id: 
 async def _food_item_url(client: AsyncClient, headers: dict[str, str], trip_id: str) -> str:
     response = await client.post(
         f"/api/v1/trips/{trip_id}/food-plan/items",
-        json={"day": "Day 1", "name": "Oatmeal", "weight_g": 100, "kcal": 400},
+        json={"day": 1, "name": "Oatmeal", "weight_g": 100, "kcal": 400},
         headers=headers,
     )
     return f"/api/v1/trips/{trip_id}/food-plan/items/{response.json()['id']}"
@@ -249,19 +249,29 @@ async def _food_item_url(client: AsyncClient, headers: dict[str, str], trip_id: 
     [
         ("POST", "/api/v1/trips", TRIP_PAYLOAD | {"total_distance_m": -1}, "total_distance_m"),
         ("POST", "/api/v1/trips", TRIP_PAYLOAD | {"elevation_gain_m": -1}, "elevation_gain_m"),
+        ("POST", "/api/v1/trips", TRIP_PAYLOAD | {"water_carry_l": -1}, "water_carry_l"),
+        ("PATCH", "{trip}", {"water_carry_l": None}, "water_carry_l"),
+        ("POST", "{trip}/food-plan/items", {"day": 0, "name": "Tea", "weight_g": 0, "kcal": 0}, "day"),
+        (
+            "POST",
+            "{trip}/food-plan/items",
+            {"day": 1, "name": "Tea", "weight_g": 0, "kcal": 0, "servings": 0},
+            "servings",
+        ),
+        ("PATCH", "{food}", {"servings": -1}, "servings"),
         ("PATCH", "{trip}", {"total_distance_m": -0.5}, "total_distance_m"),
         ("POST", "/api/v1/gear", {"name": "Tent", "category": "shelter", "weight_g": -1}, "weight_g"),
         ("PATCH", "{trip_gear}", {"quantity": 0}, "quantity"),
         (
             "POST",
             "{trip}/food-plan/items",
-            {"day": "Day 1", "name": "Tea", "weight_g": -1, "kcal": 0},
+            {"day": 1, "name": "Tea", "weight_g": -1, "kcal": 0},
             "weight_g",
         ),
         (
             "POST",
             "{trip}/food-plan/items",
-            {"day": "Day 1", "name": "Tea", "weight_g": 0, "kcal": -1},
+            {"day": 1, "name": "Tea", "weight_g": 0, "kcal": -1},
             "kcal",
         ),
         ("PATCH", "{food}", {"kcal": -1}, "kcal"),
@@ -301,8 +311,41 @@ async def test_zero_is_allowed_for_weights_and_calories(
     )
     food = await client.post(
         f"/api/v1/trips/{trip['id']}/food-plan/items",
-        json={"day": "Day 1", "name": "Tea", "weight_g": 0, "kcal": 0},
+        json={"day": 1, "name": "Tea", "weight_g": 0, "kcal": 0},
         headers=auth_headers,
     )
 
     assert (gear.status_code, food.status_code) == (201, 201)
+
+
+async def test_trip_area_and_water_carry(client: AsyncClient, auth_headers: dict[str, str]) -> None:
+    trip = await _create_trip(client, auth_headers, area="Pisgah")
+    assert (trip["area"], trip["water_carry_l"]) == ("Pisgah", 0)
+
+    response = await client.patch(
+        f"/api/v1/trips/{trip['id']}", json={"water_carry_l": 2.5, "area": None}, headers=auth_headers
+    )
+
+    assert response.status_code == 200
+    assert (response.json()["area"], response.json()["water_carry_l"]) == (None, 2.5)
+
+
+async def test_food_item_day_and_servings(client: AsyncClient, auth_headers: dict[str, str]) -> None:
+    trip = await _create_trip(client, auth_headers)
+    url = f"/api/v1/trips/{trip['id']}/food-plan/items"
+
+    default = await client.post(
+        url, json={"day": 1, "name": "Oatmeal", "weight_g": 100, "kcal": 400}, headers=auth_headers
+    )
+    half = await client.post(
+        url,
+        json={"day": 2, "name": "Oatmeal", "weight_g": 100, "kcal": 400, "servings": 1.5},
+        headers=auth_headers,
+    )
+    labelled_day = await client.post(
+        url, json={"day": "Day 1", "name": "Oatmeal", "weight_g": 100, "kcal": 400}, headers=auth_headers
+    )
+
+    assert (default.status_code, default.json()["day"], default.json()["servings"]) == (201, 1, 1)
+    assert (half.status_code, half.json()["servings"]) == (201, 1.5)
+    assert labelled_day.status_code == 422

@@ -16,6 +16,7 @@ def check_date_order(start_date: date | None, end_date: date | None) -> None:
 class TripCreate(BaseModel):
     name: str
     description: str | None = None
+    area: str | None = None
     trip_type: TripType = TripType.LOOP
     start_date: date | None = None
     end_date: date | None = None
@@ -23,6 +24,7 @@ class TripCreate(BaseModel):
     end_trailhead: str | None = None
     total_distance_m: float | None = Field(default=None, ge=0)
     elevation_gain_m: float | None = Field(default=None, ge=0)
+    water_carry_l: float = Field(default=0, ge=0)
     map_link: str | None = None
     emergency_contact: str | None = None
 
@@ -34,10 +36,11 @@ class TripCreate(BaseModel):
 
 
 class TripUpdate(UpdateSchema):
-    non_nullable = frozenset({"name", "trip_type"})
+    non_nullable = frozenset({"name", "trip_type", "water_carry_l"})
 
     name: str | None = None
     description: str | None = None
+    area: str | None = None
     trip_type: TripType | None = None
     start_date: date | None = None
     end_date: date | None = None
@@ -45,6 +48,7 @@ class TripUpdate(UpdateSchema):
     end_trailhead: str | None = None
     total_distance_m: float | None = Field(default=None, ge=0)
     elevation_gain_m: float | None = Field(default=None, ge=0)
+    water_carry_l: float | None = Field(default=None, ge=0)
     map_link: str | None = None
     emergency_contact: str | None = None
 
@@ -114,19 +118,21 @@ class ChecklistItemRead(BaseModel):
 
 
 class TripFoodCreate(BaseModel):
-    day: str
+    day: int = Field(ge=1)
     name: str
     meal_type: Meal = Meal.BREAKFAST
+    servings: float = Field(default=1, gt=0)
     weight_g: float = Field(ge=0)
     kcal: int = Field(ge=0)
 
 
 class TripFoodUpdate(UpdateSchema):
-    non_nullable = frozenset({"day", "name", "meal_type", "weight_g", "kcal"})
+    non_nullable = frozenset({"day", "name", "meal_type", "servings", "weight_g", "kcal"})
 
-    day: str | None = None
+    day: int | None = Field(default=None, ge=1)
     name: str | None = None
     meal_type: Meal | None = None
+    servings: float | None = Field(default=None, gt=0)
     weight_g: float | None = Field(default=None, ge=0)
     kcal: int | None = Field(default=None, ge=0)
 
@@ -135,9 +141,10 @@ class TripFoodRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
-    day: str
+    day: int
     name: str
     meal_type: Meal
+    servings: float
     weight_g: float
     kcal: int
     planner_id: uuid.UUID
@@ -171,6 +178,7 @@ class TripRead(BaseModel):
     user_id: uuid.UUID
     name: str
     description: str | None
+    area: str | None
     trip_type: TripType
     start_date: date | None
     end_date: date | None
@@ -178,6 +186,7 @@ class TripRead(BaseModel):
     end_trailhead: str | None
     total_distance_m: float | None
     elevation_gain_m: float | None
+    water_carry_l: float
     map_link: str | None
     emergency_contact: str | None
     food_plan: FoodPlannerRead | None

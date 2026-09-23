@@ -1,8 +1,8 @@
 """initial schema
 
-Revision ID: 11a1d15b8857
+Revision ID: 331f4ba8342f
 Revises:
-Create Date: 2026-09-23 16:27:28.374518
+Create Date: 2026-09-23 16:39:23.725187
 
 """
 
@@ -14,7 +14,7 @@ import sqlmodel.sql.sqltypes
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "11a1d15b8857"
+revision: str = "331f4ba8342f"
 down_revision: str | Sequence[str] | None = None
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
@@ -83,6 +83,7 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.Column("name", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
         sa.Column("description", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+        sa.Column("area", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
         sa.Column(
             "trip_type",
             sa.Enum("loop", "out-and-back", "point-to-point", name="triptype", native_enum=False, length=32),
@@ -94,6 +95,7 @@ def upgrade() -> None:
         sa.Column("end_trailhead", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
         sa.Column("total_distance_m", sa.Float(), nullable=True),
         sa.Column("elevation_gain_m", sa.Float(), nullable=True),
+        sa.Column("water_carry_l", sa.Float(), nullable=False),
         sa.Column("map_link", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
         sa.Column("emergency_contact", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
         sa.Column("user_id", sa.Uuid(), nullable=False),
@@ -172,13 +174,14 @@ def upgrade() -> None:
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.Column("day", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("day", sa.Integer(), nullable=False),
         sa.Column("name", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
         sa.Column(
             "meal_type",
             sa.Enum("breakfast", "lunch", "dinner", "snack", name="meal", native_enum=False, length=32),
             nullable=False,
         ),
+        sa.Column("servings", sa.Float(), nullable=False),
         sa.Column("weight_g", sa.Float(), nullable=False),
         sa.Column("kcal", sa.Integer(), nullable=False),
         sa.Column("planner_id", sa.Uuid(), nullable=False),

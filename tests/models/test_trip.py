@@ -144,7 +144,7 @@ async def test_food_planner_and_trip_food_relationship(session: AsyncSession) ->
     session.add_all(
         [
             TripFood(
-                day="Day 1",
+                day=1,
                 name="Oatmeal",
                 meal_type=Meal.BREAKFAST,
                 weight_g=100,
@@ -152,7 +152,7 @@ async def test_food_planner_and_trip_food_relationship(session: AsyncSession) ->
                 planner_id=planner.id,
             ),
             TripFood(
-                day="Day 1",
+                day=1,
                 name="Trail Mix",
                 meal_type=Meal.SNACK,
                 weight_g=200,
@@ -224,7 +224,7 @@ async def test_deleting_food_planner_cascades_to_trip_food(session: AsyncSession
 
     session.add(
         TripFood(
-            day="Day 1",
+            day=1,
             name="Oatmeal",
             weight_g=100,
             kcal=400,

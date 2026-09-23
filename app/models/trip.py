@@ -39,9 +39,12 @@ class Meal(StrEnum):
 
 
 class TripFood(ModelBase, table=True):
-    day: str
+    # 1-based trip day; the frontend renders "Day 1 (Aug 26)" from the trip's start_date.
+    day: int
     name: str
     meal_type: Meal = enum_field(Meal, Meal.BREAKFAST)
+    # weight_g and kcal are per serving; totals are servings x value.
+    servings: float = Field(default=1)
     weight_g: float
     kcal: int
     planner_id: UUID = Field(foreign_key="foodplanner.id", ondelete="CASCADE")
@@ -103,6 +106,7 @@ class Trip(ModelBase, table=True):
 
     name: str = Field(...)
     description: str | None = Field(default=None)
+    area: str | None = Field(default=None)  # e.g. "Pisgah"
     trip_type: TripType = enum_field(TripType, TripType.LOOP)
     # Calendar dates, not instants: a trip starts on "Aug 26" wherever the viewer is.
     start_date: date | None = Field(default=None)
@@ -112,6 +116,7 @@ class Trip(ModelBase, table=True):
     # Canonical units (API_GAPS 2.1): meters; the frontend converts for display.
     total_distance_m: float | None = Field(default=None)
     elevation_gain_m: float | None = Field(default=None)
+    water_carry_l: float = Field(default=0)
     map_link: str | None = Field(default=None)
     emergency_contact: str | None = Field(default=None)
 

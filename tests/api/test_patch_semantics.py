@@ -71,7 +71,7 @@ async def _food_item(client: AsyncClient, headers: Headers) -> str:
     trip = await _create_trip(client, headers)
     response = await client.post(
         f"/api/v1/trips/{trip['id']}/food-plan/items",
-        json={"day": "Day 1", "name": "Oatmeal", "weight_g": 100, "kcal": 400},
+        json={"day": 1, "name": "Oatmeal", "weight_g": 100, "kcal": 400},
         headers=headers,
     )
     assert response.status_code == 201
