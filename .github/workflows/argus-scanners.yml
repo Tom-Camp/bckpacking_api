@@ -31,23 +31,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Run Bandit (Python)
-        uses: huntridge-labs/argus/.github/actions/scanner-bandit@0.4.0
+        uses: huntridge-labs/argus/.github/actions/scanner-bandit@f6fb17dc494b545f4c6479bb01d875a831414c4e # 0.4.0
         with:
           post_pr_comment: 'true'
           enable_code_security: 'true'
           fail_on_severity: 'high'
 
       - name: Run OpenGrep
-        uses: huntridge-labs/argus/.github/actions/scanner-opengrep@0.4.0
+        uses: huntridge-labs/argus/.github/actions/scanner-opengrep@f6fb17dc494b545f4c6479bb01d875a831414c4e # 0.4.0
         with:
           enable_code_security: 'true'
           fail_on_severity: 'high'
 
       - name: Run Gitleaks (Secrets Detection)
-        uses: huntridge-labs/argus/.github/actions/scanner-gitleaks@0.4.0
+        uses: huntridge-labs/argus/.github/actions/scanner-gitleaks@f6fb17dc494b545f4c6479bb01d875a831414c4e # 0.4.0
         env:
           # Optional: For organizations, add your license
           # GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
@@ -65,10 +65,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Generate SBOM
-        uses: huntridge-labs/argus/.github/actions/scanner-syft@0.4.0
+        uses: huntridge-labs/argus/.github/actions/scanner-syft@f6fb17dc494b545f4c6479bb01d875a831414c4e # 0.4.0
         with:
           scan_path: '.'
           output_format: 'cyclonedx-json'
@@ -86,17 +86,17 @@ jobs:
     if: always()
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Download all scanner summaries
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           pattern: scanner-summary-*
           path: scanner-summaries/
         continue-on-error: true
 
       - name: Generate combined summary
-        uses: huntridge-labs/argus/.github/actions/security-summary@0.4.0
+        uses: huntridge-labs/argus/.github/actions/security-summary@f6fb17dc494b545f4c6479bb01d875a831414c4e # 0.4.0
         with:
           post_pr_comment: 'true'
         continue-on-error: true
