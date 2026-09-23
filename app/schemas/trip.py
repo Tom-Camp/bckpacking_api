@@ -1,9 +1,9 @@
 import uuid
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, computed_field, field_validator
 
-from app.models.trip import ChecklistItemKey, Meal, TripType
+from app.models.trip import ChecklistItemKey, ChecklistStatus, Meal, TripType
 from app.schemas.base import UpdateSchema
 from app.schemas.gear import GearItemRead
 
@@ -99,9 +99,9 @@ class TripNoteRead(BaseModel):
 
 
 class ChecklistItemUpdate(UpdateSchema):
-    non_nullable = frozenset({"checked"})
+    non_nullable = frozenset({"status"})
 
-    checked: bool | None = None
+    status: ChecklistStatus | None = None
     details: str | None = None
 
 
@@ -110,7 +110,7 @@ class ChecklistItemRead(BaseModel):
 
     id: uuid.UUID
     item: ChecklistItemKey
-    checked: bool
+    status: ChecklistStatus
     details: str | None
     trip_id: uuid.UUID
     created_at: datetime
@@ -195,3 +195,9 @@ class TripRead(BaseModel):
     notes: list[TripNoteRead]
     created_at: datetime
     updated_at: datetime
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def checklist_ready(self) -> bool:
+        """True when no checklist item is still to do (done and not-applicable both count)."""
+        return all(item.status != ChecklistStatus.TODO for item in self.checklist_items)

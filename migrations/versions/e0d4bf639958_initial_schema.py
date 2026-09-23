@@ -1,8 +1,8 @@
 """initial schema
 
-Revision ID: 331f4ba8342f
+Revision ID: e0d4bf639958
 Revises:
-Create Date: 2026-09-23 16:39:23.725187
+Create Date: 2026-09-23 16:54:27.573724
 
 """
 
@@ -14,7 +14,7 @@ import sqlmodel.sql.sqltypes
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "331f4ba8342f"
+revision: str = "e0d4bf639958"
 down_revision: str | Sequence[str] | None = None
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
@@ -124,7 +124,7 @@ def upgrade() -> None:
         sa.Column(
             "item",
             sa.Enum(
-                "permit_required",
+                "permit",
                 "water_sources",
                 "resupply_points",
                 "shuttle_scheduled",
@@ -139,7 +139,11 @@ def upgrade() -> None:
             ),
             nullable=False,
         ),
-        sa.Column("checked", sa.Boolean(), nullable=False),
+        sa.Column(
+            "status",
+            sa.Enum("todo", "done", "not_applicable", name="checkliststatus", native_enum=False, length=32),
+            nullable=False,
+        ),
         sa.Column("details", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
         sa.ForeignKeyConstraint(["trip_id"], ["trip.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),

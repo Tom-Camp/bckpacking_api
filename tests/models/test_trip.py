@@ -11,7 +11,7 @@ from sqlmodel import col
 
 from app.auth.passwords import hash_password
 from app.models import FoodPlanner, GearItem, Trip, TripChecklistItem, TripFood, TripGear, TripNote, User
-from app.models.trip import ChecklistItemKey, Meal, TripType
+from app.models.trip import ChecklistItemKey, ChecklistStatus, Meal, TripType
 
 hashed_password: str = hash_password("r1GRB3$ZB0*mbwymrJuJcdUTtdqESdf%AuD")
 
@@ -51,7 +51,10 @@ async def test_trip_defaults(session: AsyncSession) -> None:
 
     assert trip.trip_type == TripType.LOOP
     assert {item.item for item in trip.checklist_items} == set(ChecklistItemKey)
-    assert all(item.checked is False and item.details is None for item in trip.checklist_items)
+    statuses = {item.item: item.status for item in trip.checklist_items}
+    assert statuses.pop(ChecklistItemKey.SHUTTLE_SCHEDULED) == ChecklistStatus.NOT_APPLICABLE  # loop
+    assert set(statuses.values()) == {ChecklistStatus.TODO}
+    assert all(item.details is None for item in trip.checklist_items)
     assert trip.food_plan is not None
     assert trip.food_plan.target_kcal_per_day == 2700
     assert trip.food_plan.target_food_g_per_day == 794
@@ -64,7 +67,7 @@ async def test_checklist_item_can_be_updated_and_queried_individually(session: A
     await session.commit()
 
     water_item = next(i for i in trip.checklist_items if i.item == ChecklistItemKey.WATER_SOURCES)
-    water_item.checked = True
+    water_item.status = ChecklistStatus.DONE
     water_item.details = "Two reliable springs"
     await session.commit()
 
@@ -73,9 +76,9 @@ async def test_checklist_item_can_be_updated_and_queried_individually(session: A
     )
     items = {i.item: i for i in result.scalars().all()}
 
-    assert items[ChecklistItemKey.WATER_SOURCES].checked is True
+    assert items[ChecklistItemKey.WATER_SOURCES].status == ChecklistStatus.DONE
     assert items[ChecklistItemKey.WATER_SOURCES].details == "Two reliable springs"
-    assert items[ChecklistItemKey.FIRE_RESTRICTIONS].checked is False
+    assert items[ChecklistItemKey.FIRE_RESTRICTIONS].status == ChecklistStatus.TODO
 
 
 async def test_checklist_items_are_unique_per_trip_and_item(session: AsyncSession) -> None:
@@ -249,3 +252,19 @@ async def test_trip_end_date_before_start_date_violates_check_constraint(session
     )
     with pytest.raises(IntegrityError):
         await session.commit()
+
+
+@pytest.mark.parametrize(
+    ("trip_type", "expected"),
+    [
+        (TripType.LOOP, ChecklistStatus.NOT_APPLICABLE),
+        (TripType.OUT_AND_BACK, ChecklistStatus.NOT_APPLICABLE),
+        (TripType.POINT_TO_POINT, ChecklistStatus.TODO),
+    ],
+)
+def test_shuttle_item_is_seeded_from_trip_type(trip_type: TripType, expected: ChecklistStatus) -> None:
+    trip = Trip(name="Shuttle?", trip_type=trip_type, user_id=uuid4())
+
+    shuttle = next(i for i in trip.checklist_items if i.item == ChecklistItemKey.SHUTTLE_SCHEDULED)
+
+    assert shuttle.status == expected

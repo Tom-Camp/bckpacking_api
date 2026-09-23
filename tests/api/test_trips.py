@@ -21,7 +21,10 @@ async def test_create_trip_seeds_checklist_and_food_plan(
     assert trip["name"] == "Wonderland Trail"
     assert trip["trip_type"] == "loop"
     assert len(trip["checklist_items"]) == 9
-    assert all(item["checked"] is False for item in trip["checklist_items"])
+    statuses = {item["item"]: item["status"] for item in trip["checklist_items"]}
+    assert statuses.pop("shuttle_scheduled") == "not_applicable"  # loop trips need no shuttle
+    assert set(statuses.values()) == {"todo"}
+    assert trip["checklist_ready"] is False
     assert trip["food_plan"] is not None
     assert trip["food_plan"]["target_kcal_per_day"] == 2700
     assert trip["food_plan"]["target_food_g_per_day"] == 794
@@ -111,14 +114,14 @@ async def test_checklist_item_update_by_key(client: AsyncClient, auth_headers: d
 
     response = await client.patch(
         f"/api/v1/trips/{trip['id']}/checklist/water_sources",
-        json={"checked": True, "details": "Two reliable springs"},
+        json={"status": "done", "details": "Two reliable springs"},
         headers=auth_headers,
     )
 
     assert response.status_code == 200
     body = response.json()
     assert body["item"] == "water_sources"
-    assert body["checked"] is True
+    assert body["status"] == "done"
     assert body["details"] == "Two reliable springs"
 
 
@@ -349,3 +352,63 @@ async def test_food_item_day_and_servings(client: AsyncClient, auth_headers: dic
     assert (default.status_code, default.json()["day"], default.json()["servings"]) == (201, 1, 1)
     assert (half.status_code, half.json()["servings"]) == (201, 1.5)
     assert labelled_day.status_code == 422
+
+
+def _shuttle_status(trip: dict[str, Any]) -> str:
+    return str(next(i["status"] for i in trip["checklist_items"] if i["item"] == "shuttle_scheduled"))
+
+
+async def test_checklist_ready_when_nothing_left_to_do(
+    client: AsyncClient, auth_headers: dict[str, str]
+) -> None:
+    trip = await _create_trip(client, auth_headers)
+    url = f"/api/v1/trips/{trip['id']}"
+    todo = [i["item"] for i in trip["checklist_items"] if i["status"] == "todo"]
+
+    for key in todo[:-1]:
+        await client.patch(f"{url}/checklist/{key}", json={"status": "done"}, headers=auth_headers)
+    assert (await client.get(url, headers=auth_headers)).json()["checklist_ready"] is False
+
+    await client.patch(
+        f"{url}/checklist/{todo[-1]}", json={"status": "not_applicable"}, headers=auth_headers
+    )
+    assert (await client.get(url, headers=auth_headers)).json()["checklist_ready"] is True
+
+
+async def test_changing_trip_type_keeps_shuttle_item_in_step(
+    client: AsyncClient, auth_headers: dict[str, str]
+) -> None:
+    trip = await _create_trip(client, auth_headers, trip_type="loop")
+    url = f"/api/v1/trips/{trip['id']}"
+
+    to_point = await client.patch(url, json={"trip_type": "point-to-point"}, headers=auth_headers)
+    back_to_loop = await client.patch(url, json={"trip_type": "out-and-back"}, headers=auth_headers)
+
+    assert _shuttle_status(to_point.json()) == "todo"
+    assert _shuttle_status(back_to_loop.json()) == "not_applicable"
+
+
+async def test_changing_trip_type_never_undoes_a_done_shuttle(
+    client: AsyncClient, auth_headers: dict[str, str]
+) -> None:
+    trip = await _create_trip(client, auth_headers, trip_type="point-to-point")
+    url = f"/api/v1/trips/{trip['id']}"
+    await client.patch(f"{url}/checklist/shuttle_scheduled", json={"status": "done"}, headers=auth_headers)
+
+    response = await client.patch(url, json={"trip_type": "loop"}, headers=auth_headers)
+
+    assert _shuttle_status(response.json()) == "done"
+
+
+async def test_checklist_rejects_unknown_status_and_old_permit_key(
+    client: AsyncClient, auth_headers: dict[str, str]
+) -> None:
+    trip = await _create_trip(client, auth_headers)
+    url = f"/api/v1/trips/{trip['id']}/checklist"
+
+    bad_status = await client.patch(f"{url}/permit", json={"status": "n/a"}, headers=auth_headers)
+    old_key = await client.patch(f"{url}/permit_required", json={"status": "done"}, headers=auth_headers)
+    permit = await client.patch(f"{url}/permit", json={"status": "not_applicable"}, headers=auth_headers)
+
+    assert (bad_status.status_code, old_key.status_code) == (422, 422)
+    assert (permit.status_code, permit.json()["status"]) == (200, "not_applicable")

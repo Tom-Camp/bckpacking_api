@@ -8,12 +8,15 @@ from sqlmodel import col, select
 from app.models.gear import GearItem
 from app.models.trip import (
     ChecklistItemKey,
+    ChecklistStatus,
     FoodPlanner,
     Trip,
     TripChecklistItem,
     TripFood,
     TripGear,
     TripNote,
+    TripType,
+    shuttle_status_for,
 )
 from app.schemas.trip import (
     ChecklistItemUpdate,
@@ -86,7 +89,16 @@ async def update_trip(session: AsyncSession, trip: Trip, data: TripUpdate) -> Tr
                 }
             ]
         ) from exc
+    if data.trip_type is not None and data.trip_type != trip.trip_type:
+        _sync_shuttle_item(trip, data.trip_type)
     return await save_updates(session, trip, data)
+
+
+def _sync_shuttle_item(trip: Trip, trip_type: TripType) -> None:
+    # Keep the shuttle item in step with the trip type, but never undo a shuttle the user marked done.
+    shuttle = next((i for i in trip.checklist_items if i.item == ChecklistItemKey.SHUTTLE_SCHEDULED), None)
+    if shuttle is not None and shuttle.status != ChecklistStatus.DONE:
+        shuttle.status = shuttle_status_for(trip_type)
 
 
 async def delete_trip(session: AsyncSession, trip: Trip) -> None:

@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 
 class ChecklistItemKey(StrEnum):
-    PERMIT_REQUIRED = "permit_required"
+    PERMIT = "permit"  # done = obtained, not_applicable = none required
     WATER_SOURCES = "water_sources"
     RESUPPLY_POINTS = "resupply_points"
     SHUTTLE_SCHEDULED = "shuttle_scheduled"
@@ -29,6 +29,22 @@ class TripType(StrEnum):
     LOOP = "loop"
     OUT_AND_BACK = "out-and-back"
     POINT_TO_POINT = "point-to-point"
+
+
+class ChecklistStatus(StrEnum):
+    TODO = "todo"
+    DONE = "done"
+    NOT_APPLICABLE = "not_applicable"
+
+
+# A shuttle only matters when the trip ends somewhere other than where it starts.
+_TRIP_TYPES_WITHOUT_SHUTTLE = frozenset({TripType.LOOP, TripType.OUT_AND_BACK})
+
+
+def shuttle_status_for(trip_type: TripType) -> ChecklistStatus:
+    return (
+        ChecklistStatus.NOT_APPLICABLE if trip_type in _TRIP_TYPES_WITHOUT_SHUTTLE else ChecklistStatus.TODO
+    )
 
 
 class Meal(StrEnum):
@@ -87,7 +103,7 @@ class TripChecklistItem(ModelBase, table=True):
 
     trip_id: UUID = Field(foreign_key="trip.id", ondelete="CASCADE")
     item: ChecklistItemKey = enum_field(ChecklistItemKey, ChecklistItemKey.WATER_SOURCES)
-    checked: bool = Field(default=False)
+    status: ChecklistStatus = enum_field(ChecklistStatus, ChecklistStatus.TODO)
     details: str | None = Field(default=None)
     trip: Trip = Relationship(
         back_populates="checklist_items", sa_relationship_kwargs={"lazy": "raise_on_sql"}
@@ -142,7 +158,19 @@ class Trip(ModelBase, table=True):
 
 @event.listens_for(Trip, "init")
 def _seed_checklist_items(_target: Trip, _args: tuple[Any, ...], kwargs: dict[str, Any]) -> None:
-    kwargs.setdefault("checklist_items", [TripChecklistItem(item=key) for key in ChecklistItemKey])
+    trip_type = TripType(kwargs.get("trip_type", TripType.LOOP))
+    kwargs.setdefault(
+        "checklist_items",
+        [
+            TripChecklistItem(
+                item=key,
+                status=shuttle_status_for(trip_type)
+                if key == ChecklistItemKey.SHUTTLE_SCHEDULED
+                else ChecklistStatus.TODO,
+            )
+            for key in ChecklistItemKey
+        ],
+    )
 
 
 @event.listens_for(Trip, "init")

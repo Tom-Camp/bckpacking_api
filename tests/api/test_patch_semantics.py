@@ -98,7 +98,7 @@ CASES = [
     Case("gear-item", _gear_item, {"weight_g": 1100}, non_nullable="name", nullable="notes"),
     Case("trip-gear", _trip_gear, {"packed": True}, non_nullable="quantity"),
     Case("note", _note, {"content": "Bring more socks."}, non_nullable="content"),
-    Case("checklist", _checklist_item, {"checked": True}, non_nullable="checked", nullable="details"),
+    Case("checklist", _checklist_item, {"status": "done"}, non_nullable="status", nullable="details"),
     Case("food-plan", _food_plan, {"target_food_g_per_day": 900}, non_nullable="target_kcal_per_day"),
     Case("food-item", _food_item, {"kcal": 450}, non_nullable="name"),
     Case("user", _me, {"last_name": "Lovelace"}, non_nullable="username", nullable="first_name"),
