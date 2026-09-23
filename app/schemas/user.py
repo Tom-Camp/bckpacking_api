@@ -2,7 +2,7 @@ import re
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 from zxcvbn import zxcvbn
 
 from app.models.user import UserRole, UserStatus
@@ -58,6 +58,7 @@ class UserUpdate(UpdateSchema):
     first_name: str | None = None
     last_name: str | None = None
     picture: str | None = None
+    body_weight_g: float | None = Field(default=None, gt=0)
 
     @field_validator("username")
     @classmethod
@@ -80,6 +81,7 @@ class UserRead(BaseModel):
     first_name: str | None = None
     last_name: str | None = None
     picture: str | None = None
+    body_weight_g: float | None = None
     status: UserStatus
     role: UserRole
     first_login: datetime | None = None

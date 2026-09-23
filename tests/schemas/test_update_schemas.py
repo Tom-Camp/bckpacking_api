@@ -23,9 +23,6 @@ UPDATE_SCHEMAS: list[tuple[type[UpdateSchema], type[SQLModel]]] = [
     (UserUpdate, User),
 ]
 
-# Schema fields with no backing column. `picture` is tracked in API_GAPS.md 1.5.
-_NOT_COLUMNS = {(UserUpdate, "picture")}
-
 
 @pytest.mark.parametrize(("schema", "model"), UPDATE_SCHEMAS, ids=lambda x: x.__name__)
 def test_non_nullable_matches_model_columns(schema: type[UpdateSchema], model: type[SQLModel]) -> None:
@@ -34,8 +31,6 @@ def test_non_nullable_matches_model_columns(schema: type[UpdateSchema], model: t
     # must accept one (otherwise the client can't clear it).
     columns = model.__table__.c  # type: ignore[attr-defined]
     for field in schema.model_fields:
-        if (schema, field) in _NOT_COLUMNS:
-            continue
         assert (field in schema.non_nullable) == (not columns[field].nullable), field
 
 

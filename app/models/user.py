@@ -25,6 +25,8 @@ class User(ModelBase, table=True):
     password_hash: str
     first_name: str | None = None
     last_name: str | None = None
+    picture: str | None = None
+    body_weight_g: float | None = None
     status: UserStatus = enum_field(UserStatus, UserStatus.ACTIVE)
     role: UserRole = enum_field(UserRole, UserRole.USER)
     first_login: datetime | None = Field(
