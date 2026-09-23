@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict, ValidationInfo, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
 from app.models.trip import ChecklistItemKey, Meal, TripType, Unit
 from app.schemas.base import UpdateSchema
@@ -25,8 +25,8 @@ class TripCreate(BaseModel):
     end_date: date | None = None
     start_trailhead: str | None = None
     end_trailhead: str | None = None
-    total_distance: int | None = None
-    elevation_gain: int | None = None
+    total_distance_m: float | None = Field(default=None, ge=0)
+    elevation_gain_m: float | None = Field(default=None, ge=0)
     map_link: str | None = None
     emergency_contact: str | None = None
 
@@ -48,8 +48,8 @@ class TripUpdate(UpdateSchema):
     end_date: date | None = None
     start_trailhead: str | None = None
     end_trailhead: str | None = None
-    total_distance: int | None = None
-    elevation_gain: int | None = None
+    total_distance_m: float | None = Field(default=None, ge=0)
+    elevation_gain_m: float | None = Field(default=None, ge=0)
     map_link: str | None = None
     emergency_contact: str | None = None
 
@@ -57,8 +57,8 @@ class TripUpdate(UpdateSchema):
 class GearCreate(BaseModel):
     gear_name: str
     category: str
-    weight: float = 0.0
-    quantity: int = 0
+    weight: float = Field(default=0.0, ge=0)
+    quantity: int = Field(default=0, ge=0)
     notes: str | None = None
 
     @field_validator("category")
@@ -72,8 +72,8 @@ class GearUpdate(UpdateSchema):
 
     gear_name: str | None = None
     category: str | None = None
-    weight: float | None = None
-    quantity: int | None = None
+    weight: float | None = Field(default=None, ge=0)
+    quantity: int | None = Field(default=None, ge=0)
     notes: str | None = None
 
     @field_validator("category")
@@ -139,8 +139,8 @@ class TripFoodCreate(BaseModel):
     day: str
     name: str
     meal_type: Meal = Meal.BREAKFAST
-    weight: float
-    calories: int
+    weight: float = Field(ge=0)
+    calories: int = Field(ge=0)
 
 
 class TripFoodUpdate(UpdateSchema):
@@ -149,8 +149,8 @@ class TripFoodUpdate(UpdateSchema):
     day: str | None = None
     name: str | None = None
     meal_type: Meal | None = None
-    weight: float | None = None
-    calories: int | None = None
+    weight: float | None = Field(default=None, ge=0)
+    calories: int | None = Field(default=None, ge=0)
 
 
 class TripFoodRead(BaseModel):
@@ -170,8 +170,8 @@ class TripFoodRead(BaseModel):
 class FoodPlannerUpdate(UpdateSchema):
     non_nullable = frozenset({"target_calories", "target_food_weight"})
 
-    target_calories: int | None = None
-    target_food_weight: float | None = None
+    target_calories: int | None = Field(default=None, ge=0)
+    target_food_weight: float | None = Field(default=None, ge=0)
 
 
 class FoodPlannerRead(BaseModel):
@@ -199,8 +199,8 @@ class TripRead(BaseModel):
     end_date: date | None
     start_trailhead: str | None
     end_trailhead: str | None
-    total_distance: int | None
-    elevation_gain: int | None
+    total_distance_m: float | None
+    elevation_gain_m: float | None
     map_link: str | None
     emergency_contact: str | None
     food_plan: FoodPlannerRead | None

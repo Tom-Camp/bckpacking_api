@@ -1,4 +1,5 @@
 from datetime import date
+from uuid import uuid4
 
 import pytest
 from pydantic import ValidationError
@@ -25,7 +26,7 @@ async def _make_user(session: AsyncSession, email: str = "hiker@example.com") ->
 
 async def _make_trip(session: AsyncSession, user: User, **kwargs: object) -> Trip:
     kwargs.setdefault("name", "Test Trip")
-    kwargs.setdefault("total_distance", 10)
+    kwargs.setdefault("total_distance_m", 16_000)
     trip = Trip(user_id=user.id, **kwargs)
     session.add(trip)
     await session.commit()
@@ -36,17 +37,17 @@ async def _make_trip(session: AsyncSession, user: User, **kwargs: object) -> Tri
     return trip
 
 
-def test_total_distance_is_required() -> None:
+def test_trip_name_is_required() -> None:
     # SQLModel table classes skip Pydantic validation on direct __init__ (needed so the
     # ORM can construct partially-populated instances while loading rows), so required-field
     # enforcement only shows up through model_validate(), e.g. FastAPI request parsing.
-    with pytest.raises(ValidationError):
-        Trip.model_validate({"name": "No distance"})
+    with pytest.raises(ValidationError, match="name"):
+        Trip.model_validate({"user_id": uuid4()})
 
 
 async def test_trip_defaults(session: AsyncSession) -> None:
     user = await _make_user(session)
-    trip = await _make_trip(session, user, name="Wonderland Trail", total_distance=93)
+    trip = await _make_trip(session, user, name="Wonderland Trail", total_distance_m=149_700)
 
     assert trip.measurements == Unit.IMPERIAL
     assert trip.trip_type == TripType.LOOP
@@ -59,7 +60,7 @@ async def test_trip_defaults(session: AsyncSession) -> None:
 
 async def test_checklist_item_can_be_updated_and_queried_individually(session: AsyncSession) -> None:
     user = await _make_user(session, "checklist@example.com")
-    trip = Trip(name="Checklist Trip", total_distance=10, user_id=user.id)
+    trip = Trip(name="Checklist Trip", total_distance_m=16_000, user_id=user.id)
     session.add(trip)
     await session.commit()
 

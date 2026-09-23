@@ -3,7 +3,7 @@ from typing import Any, cast
 import pytest
 from httpx import AsyncClient
 
-TRIP_PAYLOAD = {"name": "Wonderland Trail", "total_distance": 93}
+TRIP_PAYLOAD = {"name": "Wonderland Trail", "total_distance_m": 149_700}
 
 
 async def _create_trip(client: AsyncClient, headers: dict[str, str], **overrides: object) -> dict[str, Any]:
@@ -63,13 +63,13 @@ async def test_update_trip(client: AsyncClient, auth_headers: dict[str, str]) ->
 
     response = await client.patch(
         f"/api/v1/trips/{trip['id']}",
-        json={"total_distance": 100, "name": "Wonderful Trail"},
+        json={"total_distance_m": 150_200.5, "name": "Wonderful Trail"},
         headers=auth_headers,
     )
 
     assert response.status_code == 200
     body = response.json()
-    assert body["total_distance"] == 100
+    assert body["total_distance_m"] == 150_200.5
     assert body["name"] == "Wonderful Trail"
 
 
@@ -270,3 +270,87 @@ async def test_update_trip_can_move_both_dates_past_old_end_date(
 
     assert response.status_code == 200
     assert (response.json()["start_date"], response.json()["end_date"]) == ("2026-09-10", "2026-09-12")
+
+
+async def _gear_url(client: AsyncClient, headers: dict[str, str], trip_id: str) -> str:
+    response = await client.post(
+        f"/api/v1/trips/{trip_id}/gear", json={"gear_name": "Tent", "category": "shelter"}, headers=headers
+    )
+    return f"/api/v1/trips/{trip_id}/gear/{response.json()['id']}"
+
+
+async def _food_item_url(client: AsyncClient, headers: dict[str, str], trip_id: str) -> str:
+    response = await client.post(
+        f"/api/v1/trips/{trip_id}/food-plan/items",
+        json={"day": "Day 1", "name": "Oatmeal", "weight": 100, "calories": 400},
+        headers=headers,
+    )
+    return f"/api/v1/trips/{trip_id}/food-plan/items/{response.json()['id']}"
+
+
+@pytest.mark.parametrize(
+    ("method", "path", "body", "field"),
+    [
+        ("POST", "/api/v1/trips", TRIP_PAYLOAD | {"total_distance_m": -1}, "total_distance_m"),
+        ("POST", "/api/v1/trips", TRIP_PAYLOAD | {"elevation_gain_m": -1}, "elevation_gain_m"),
+        ("PATCH", "{trip}", {"total_distance_m": -0.5}, "total_distance_m"),
+        ("POST", "{trip}/gear", {"gear_name": "Tent", "category": "shelter", "weight": -1}, "weight"),
+        ("POST", "{trip}/gear", {"gear_name": "Tent", "category": "shelter", "quantity": -1}, "quantity"),
+        ("PATCH", "{gear}", {"weight": -1}, "weight"),
+        ("PATCH", "{gear}", {"quantity": -1}, "quantity"),
+        (
+            "POST",
+            "{trip}/food-plan/items",
+            {"day": "Day 1", "name": "Tea", "weight": -1, "calories": 0},
+            "weight",
+        ),
+        (
+            "POST",
+            "{trip}/food-plan/items",
+            {"day": "Day 1", "name": "Tea", "weight": 0, "calories": -1},
+            "calories",
+        ),
+        ("PATCH", "{food}", {"calories": -1}, "calories"),
+        ("PATCH", "{trip}/food-plan", {"target_calories": -1}, "target_calories"),
+        ("PATCH", "{trip}/food-plan", {"target_food_weight": -1}, "target_food_weight"),
+    ],
+)
+async def test_negative_numbers_are_rejected(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    method: str,
+    path: str,
+    body: dict[str, Any],
+    field: str,
+) -> None:
+    trip = await _create_trip(client, auth_headers)
+    trip_url = f"/api/v1/trips/{trip['id']}"
+    urls = {"trip": trip_url}
+    if "{gear}" in path:
+        urls["gear"] = await _gear_url(client, auth_headers, trip["id"])
+    if "{food}" in path:
+        urls["food"] = await _food_item_url(client, auth_headers, trip["id"])
+
+    response = await client.request(method, path.format(**urls), json=body, headers=auth_headers)
+
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["loc"] == ["body", field]
+
+
+async def test_zero_is_allowed_for_weights_and_calories(
+    client: AsyncClient, auth_headers: dict[str, str]
+) -> None:
+    trip = await _create_trip(client, auth_headers, total_distance_m=0, elevation_gain_m=0)
+
+    gear = await client.post(
+        f"/api/v1/trips/{trip['id']}/gear",
+        json={"gear_name": "Permit", "category": "docs", "weight": 0, "quantity": 0},
+        headers=auth_headers,
+    )
+    food = await client.post(
+        f"/api/v1/trips/{trip['id']}/food-plan/items",
+        json={"day": "Day 1", "name": "Tea", "weight": 0, "calories": 0},
+        headers=auth_headers,
+    )
+
+    assert (gear.status_code, food.status_code) == (201, 201)

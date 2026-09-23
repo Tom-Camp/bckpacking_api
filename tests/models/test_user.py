@@ -102,7 +102,7 @@ async def test_user_trips_relationship(session: AsyncSession) -> None:
     await session.commit()
     await session.refresh(user)
 
-    trip = Trip(name="PCT Section A", total_distance=42, user_id=user.id)
+    trip = Trip(name="PCT Section A", total_distance_m=42_000, user_id=user.id)
     session.add(trip)
     await session.commit()
 

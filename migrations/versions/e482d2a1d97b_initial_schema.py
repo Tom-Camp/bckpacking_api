@@ -1,8 +1,8 @@
 """initial schema
 
-Revision ID: bfd636596dfb
+Revision ID: e482d2a1d97b
 Revises:
-Create Date: 2026-09-23 08:10:29.609288
+Create Date: 2026-09-23 08:18:50.351935
 
 """
 
@@ -14,7 +14,7 @@ import sqlmodel.sql.sqltypes
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "bfd636596dfb"
+revision: str = "e482d2a1d97b"
 down_revision: str | Sequence[str] | None = None
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
@@ -72,8 +72,8 @@ def upgrade() -> None:
         sa.Column("end_date", sa.Date(), nullable=True),
         sa.Column("start_trailhead", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
         sa.Column("end_trailhead", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
-        sa.Column("total_distance", sa.Integer(), nullable=True),
-        sa.Column("elevation_gain", sa.Integer(), nullable=True),
+        sa.Column("total_distance_m", sa.Float(), nullable=True),
+        sa.Column("elevation_gain_m", sa.Float(), nullable=True),
         sa.Column("map_link", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
         sa.Column("emergency_contact", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
         sa.Column("user_id", sa.Uuid(), nullable=False),

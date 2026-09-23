@@ -113,8 +113,9 @@ class Trip(ModelBase, table=True):
     end_date: date | None = Field(default=None)
     start_trailhead: str | None = Field(default=None)
     end_trailhead: str | None = Field(default=None)
-    total_distance: int | None = Field(default=None)
-    elevation_gain: int | None = Field(default=None)
+    # Canonical units (API_GAPS 2.1): meters; the frontend converts for display.
+    total_distance_m: float | None = Field(default=None)
+    elevation_gain_m: float | None = Field(default=None)
     map_link: str | None = Field(default=None)
     emergency_contact: str | None = Field(default=None)
 
