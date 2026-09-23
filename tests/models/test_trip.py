@@ -91,7 +91,9 @@ async def test_gear_category_is_lowercased(session: AsyncSession) -> None:
     user = await _make_user(session, "gear@example.com")
     trip = await _make_trip(session, user)
 
-    gear = Gear.model_validate({"category": "SHELTER", "weight": 1.2, "quantity": 1, "trip_id": trip.id})
+    gear = Gear.model_validate(
+        {"gear_name": "Tent", "category": "SHELTER", "weight": 1.2, "quantity": 1, "trip_id": trip.id}
+    )
     session.add(gear)
     await session.commit()
     await session.refresh(gear)
@@ -105,8 +107,8 @@ async def test_trip_gear_list_relationship(session: AsyncSession) -> None:
 
     session.add_all(
         [
-            Gear(category="shelter", weight=1.2, quantity=1, trip_id=trip.id),
-            Gear(category="cook", weight=0.5, quantity=1, trip_id=trip.id),
+            Gear(gear_name="Tent", category="shelter", weight=1.2, quantity=1, trip_id=trip.id),
+            Gear(gear_name="Stove", category="cook", weight=0.5, quantity=1, trip_id=trip.id),
         ]
     )
     await session.commit()
@@ -199,7 +201,7 @@ async def test_deleting_trip_cascades_to_gear_food_planner_checklist_items_and_n
 
     session.add_all(
         [
-            Gear(category="shelter", weight=1.0, quantity=1, trip_id=trip.id),
+            Gear(gear_name="Tent", category="shelter", weight=1.0, quantity=1, trip_id=trip.id),
             TripNote(content="Bring extra socks.", trip_id=trip.id),
         ]
     )

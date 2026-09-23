@@ -41,6 +41,7 @@ class TripUpdate(BaseModel):
 
 
 class GearCreate(BaseModel):
+    gear_name: str
     category: str
     weight: float = 0.0
     quantity: int = 0
@@ -53,6 +54,7 @@ class GearCreate(BaseModel):
 
 
 class GearUpdate(BaseModel):
+    gear_name: str | None = None
     category: str | None = None
     weight: float | None = None
     quantity: int | None = None
@@ -68,6 +70,7 @@ class GearRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
+    gear_name: str
     category: str
     weight: float
     quantity: int

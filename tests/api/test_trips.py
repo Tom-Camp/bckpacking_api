@@ -87,19 +87,21 @@ async def test_gear_add_update_delete(client: AsyncClient, auth_headers: dict[st
 
     add_response = await client.post(
         f"/api/v1/trips/{trip['id']}/gear",
-        json={"category": "SHELTER", "weight": 1.2, "quantity": 1},
+        json={"gear_name": "Tent", "category": "SHELTER", "weight": 1.2, "quantity": 1},
         headers=auth_headers,
     )
     assert add_response.status_code == 201
     gear = add_response.json()
+    assert gear["gear_name"] == "Tent"
     assert gear["category"] == "shelter"
 
     update_response = await client.patch(
         f"/api/v1/trips/{trip['id']}/gear/{gear['id']}",
-        json={"quantity": 2},
+        json={"gear_name": "Tarp", "quantity": 2},
         headers=auth_headers,
     )
     assert update_response.status_code == 200
+    assert update_response.json()["gear_name"] == "Tarp"
     assert update_response.json()["quantity"] == 2
 
     delete_response = await client.delete(
@@ -118,7 +120,7 @@ async def test_gear_not_found_for_other_users_trip(
 
     response = await client.post(
         f"/api/v1/trips/{trip['id']}/gear",
-        json={"category": "shelter"},
+        json={"gear_name": "Tent", "category": "shelter"},
         headers=other_auth_headers,
     )
 
