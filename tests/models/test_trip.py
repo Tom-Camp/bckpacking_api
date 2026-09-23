@@ -11,7 +11,7 @@ from sqlmodel import col
 
 from app.auth.passwords import hash_password
 from app.models import FoodPlanner, Gear, Trip, TripChecklistItem, TripFood, TripNote, User
-from app.models.trip import ChecklistItemKey, Meal, TripType, Unit
+from app.models.trip import ChecklistItemKey, Meal, TripType
 
 hashed_password: str = hash_password("r1GRB3$ZB0*mbwymrJuJcdUTtdqESdf%AuD")
 
@@ -49,13 +49,12 @@ async def test_trip_defaults(session: AsyncSession) -> None:
     user = await _make_user(session)
     trip = await _make_trip(session, user, name="Wonderland Trail", total_distance_m=149_700)
 
-    assert trip.measurements == Unit.IMPERIAL
     assert trip.trip_type == TripType.LOOP
     assert {item.item for item in trip.checklist_items} == set(ChecklistItemKey)
     assert all(item.checked is False and item.details is None for item in trip.checklist_items)
     assert trip.food_plan is not None
-    assert trip.food_plan.target_calories == 0
-    assert trip.food_plan.target_food_weight == 0
+    assert trip.food_plan.target_kcal_per_day == 2700
+    assert trip.food_plan.target_food_g_per_day == 794
 
 
 async def test_checklist_item_can_be_updated_and_queried_individually(session: AsyncSession) -> None:
@@ -95,7 +94,7 @@ async def test_gear_category_is_lowercased(session: AsyncSession) -> None:
     trip = await _make_trip(session, user)
 
     gear = Gear.model_validate(
-        {"gear_name": "Tent", "category": "SHELTER", "weight": 1.2, "quantity": 1, "trip_id": trip.id}
+        {"gear_name": "Tent", "category": "SHELTER", "weight_g": 1200, "quantity": 1, "trip_id": trip.id}
     )
     session.add(gear)
     await session.commit()
@@ -110,8 +109,8 @@ async def test_trip_gear_list_relationship(session: AsyncSession) -> None:
 
     session.add_all(
         [
-            Gear(gear_name="Tent", category="shelter", weight=1.2, quantity=1, trip_id=trip.id),
-            Gear(gear_name="Stove", category="cook", weight=0.5, quantity=1, trip_id=trip.id),
+            Gear(gear_name="Tent", category="shelter", weight_g=1200, quantity=1, trip_id=trip.id),
+            Gear(gear_name="Stove", category="cook", weight_g=500, quantity=1, trip_id=trip.id),
         ]
     )
     await session.commit()
@@ -149,8 +148,8 @@ async def test_food_planner_and_trip_food_relationship(session: AsyncSession) ->
     trip = await _make_trip(session, user)
     planner = trip.food_plan
     assert planner is not None
-    planner.target_calories = 12000
-    planner.target_food_weight = 6.5
+    planner.target_kcal_per_day = 3000
+    planner.target_food_g_per_day = 900
     session.add(planner)
     await session.commit()
 
@@ -160,16 +159,16 @@ async def test_food_planner_and_trip_food_relationship(session: AsyncSession) ->
                 day="Day 1",
                 name="Oatmeal",
                 meal_type=Meal.BREAKFAST,
-                weight=0.1,
-                calories=400,
+                weight_g=100,
+                kcal=400,
                 planner_id=planner.id,
             ),
             TripFood(
                 day="Day 1",
                 name="Trail Mix",
                 meal_type=Meal.SNACK,
-                weight=0.2,
-                calories=600,
+                weight_g=200,
+                kcal=600,
                 planner_id=planner.id,
             ),
         ]
@@ -184,7 +183,7 @@ async def test_food_planner_and_trip_food_relationship(session: AsyncSession) ->
     loaded_planner = result.scalar_one()
 
     assert {f.name for f in loaded_planner.food} == {"Oatmeal", "Trail Mix"}
-    assert sum(f.calories for f in loaded_planner.food) == 1000
+    assert sum(f.kcal for f in loaded_planner.food) == 1000
 
 
 async def test_food_planner_trip_id_is_unique(session: AsyncSession) -> None:
@@ -204,7 +203,7 @@ async def test_deleting_trip_cascades_to_gear_food_planner_checklist_items_and_n
 
     session.add_all(
         [
-            Gear(gear_name="Tent", category="shelter", weight=1.0, quantity=1, trip_id=trip.id),
+            Gear(gear_name="Tent", category="shelter", weight_g=1000, quantity=1, trip_id=trip.id),
             TripNote(content="Bring extra socks.", trip_id=trip.id),
         ]
     )
@@ -234,8 +233,8 @@ async def test_deleting_food_planner_cascades_to_trip_food(session: AsyncSession
         TripFood(
             day="Day 1",
             name="Oatmeal",
-            weight=0.1,
-            calories=400,
+            weight_g=100,
+            kcal=400,
             planner_id=planner.id,
         )
     )

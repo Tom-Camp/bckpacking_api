@@ -31,3 +31,25 @@ async def test_update_me_rejects_non_positive_body_weight(
 
 def test_body_weight_is_not_in_public_profile() -> None:
     assert "body_weight_g" not in UserPublic.model_fields
+
+
+async def test_measurements_preference_defaults_to_imperial_and_can_change(
+    client: AsyncClient, auth_headers: dict[str, str]
+) -> None:
+    me = (await client.get("/api/v1/users/me", headers=auth_headers)).json()
+    assert me["measurements"] == "imperial"
+
+    response = await client.patch("/api/v1/users/me", json={"measurements": "metric"}, headers=auth_headers)
+
+    assert response.status_code == 200
+    assert response.json()["measurements"] == "metric"
+
+
+async def test_measurements_rejects_unknown_unit_system(
+    client: AsyncClient, auth_headers: dict[str, str]
+) -> None:
+    response = await client.patch(
+        "/api/v1/users/me", json={"measurements": "furlongs"}, headers=auth_headers
+    )
+
+    assert response.status_code == 422

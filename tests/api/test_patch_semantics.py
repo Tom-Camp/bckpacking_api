@@ -29,7 +29,13 @@ async def _gear(client: AsyncClient, headers: Headers) -> str:
     trip = await _create_trip(client, headers)
     response = await client.post(
         f"/api/v1/trips/{trip['id']}/gear",
-        json={"gear_name": "Tent", "category": "shelter", "weight": 1.2, "quantity": 1, "notes": "Stakes"},
+        json={
+            "gear_name": "Tent",
+            "category": "shelter",
+            "weight_g": 1200,
+            "quantity": 1,
+            "notes": "Stakes",
+        },
         headers=headers,
     )
     assert response.status_code == 201
@@ -62,7 +68,7 @@ async def _food_item(client: AsyncClient, headers: Headers) -> str:
     trip = await _create_trip(client, headers)
     response = await client.post(
         f"/api/v1/trips/{trip['id']}/food-plan/items",
-        json={"day": "Day 1", "name": "Oatmeal", "weight": 0.1, "calories": 400},
+        json={"day": "Day 1", "name": "Oatmeal", "weight_g": 100, "kcal": 400},
         headers=headers,
     )
     assert response.status_code == 201
@@ -89,8 +95,8 @@ CASES = [
     Case("gear", _gear, {"quantity": 2}, non_nullable="gear_name", nullable="notes"),
     Case("note", _note, {"content": "Bring more socks."}, non_nullable="content"),
     Case("checklist", _checklist_item, {"checked": True}, non_nullable="checked", nullable="details"),
-    Case("food-plan", _food_plan, {"target_food_weight": 6.5}, non_nullable="target_calories"),
-    Case("food-item", _food_item, {"calories": 450}, non_nullable="name"),
+    Case("food-plan", _food_plan, {"target_food_g_per_day": 900}, non_nullable="target_kcal_per_day"),
+    Case("food-item", _food_item, {"kcal": 450}, non_nullable="name"),
     Case("user", _me, {"last_name": "Lovelace"}, non_nullable="username", nullable="first_name"),
 ]
 

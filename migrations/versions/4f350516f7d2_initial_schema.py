@@ -1,8 +1,8 @@
 """initial schema
 
-Revision ID: e482d2a1d97b
+Revision ID: 4f350516f7d2
 Revises:
-Create Date: 2026-09-23 08:18:50.351935
+Create Date: 2026-09-23 16:03:35.689016
 
 """
 
@@ -14,7 +14,7 @@ import sqlmodel.sql.sqltypes
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "e482d2a1d97b"
+revision: str = "4f350516f7d2"
 down_revision: str | Sequence[str] | None = None
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
@@ -35,6 +35,11 @@ def upgrade() -> None:
         sa.Column("last_name", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
         sa.Column("picture", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
         sa.Column("body_weight_g", sa.Float(), nullable=True),
+        sa.Column(
+            "measurements",
+            sa.Enum("metric", "imperial", name="unit", native_enum=False, length=32),
+            nullable=False,
+        ),
         sa.Column(
             "status",
             sa.Enum("active", "blocked", name="userstatus", native_enum=False, length=32),
@@ -59,11 +64,6 @@ def upgrade() -> None:
         sa.Column("name", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
         sa.Column("description", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
         sa.Column(
-            "measurements",
-            sa.Enum("metric", "imperial", name="unit", native_enum=False, length=32),
-            nullable=False,
-        ),
-        sa.Column(
             "trip_type",
             sa.Enum("loop", "out-and-back", "point-to-point", name="triptype", native_enum=False, length=32),
             nullable=False,
@@ -86,8 +86,8 @@ def upgrade() -> None:
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.Column("target_calories", sa.Integer(), nullable=False),
-        sa.Column("target_food_weight", sa.Float(), nullable=False),
+        sa.Column("target_kcal_per_day", sa.Integer(), nullable=False),
+        sa.Column("target_food_g_per_day", sa.Float(), nullable=False),
         sa.Column("trip_id", sa.Uuid(), nullable=False),
         sa.ForeignKeyConstraint(["trip_id"], ["trip.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
@@ -100,7 +100,7 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.Column("gear_name", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
         sa.Column("category", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-        sa.Column("weight", sa.Float(), nullable=False),
+        sa.Column("weight_g", sa.Float(), nullable=False),
         sa.Column("quantity", sa.Integer(), nullable=False),
         sa.Column("notes", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
         sa.Column("trip_id", sa.Uuid(), nullable=False),
@@ -159,8 +159,8 @@ def upgrade() -> None:
             sa.Enum("breakfast", "lunch", "dinner", "snack", name="meal", native_enum=False, length=32),
             nullable=False,
         ),
-        sa.Column("weight", sa.Float(), nullable=False),
-        sa.Column("calories", sa.Integer(), nullable=False),
+        sa.Column("weight_g", sa.Float(), nullable=False),
+        sa.Column("kcal", sa.Integer(), nullable=False),
         sa.Column("planner_id", sa.Uuid(), nullable=False),
         sa.ForeignKeyConstraint(["planner_id"], ["foodplanner.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),

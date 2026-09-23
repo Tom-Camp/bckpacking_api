@@ -38,17 +38,12 @@ class Meal(StrEnum):
     SNACK = "snack"
 
 
-class Unit(StrEnum):
-    METRIC = "metric"
-    IMPERIAL = "imperial"
-
-
 class TripFood(ModelBase, table=True):
     day: str
     name: str
     meal_type: Meal = enum_field(Meal, Meal.BREAKFAST)
-    weight: float
-    calories: int
+    weight_g: float
+    kcal: int
     planner_id: UUID = Field(foreign_key="foodplanner.id", ondelete="CASCADE")
     planner: FoodPlanner = Relationship(
         back_populates="food", sa_relationship_kwargs={"lazy": "raise_on_sql"}
@@ -56,8 +51,9 @@ class TripFood(ModelBase, table=True):
 
 
 class FoodPlanner(ModelBase, table=True):
-    target_calories: int = Field(default=0)
-    target_food_weight: float = Field(default=0)
+    # Defaults from the trip-planner template: 2700 kcal and 1.75 lb (~794 g) of food per day.
+    target_kcal_per_day: int = Field(default=2700)
+    target_food_g_per_day: float = Field(default=794)
     trip_id: UUID = Field(foreign_key="trip.id", unique=True, ondelete="CASCADE")
     food: list[TripFood] = Relationship(
         back_populates="planner", passive_deletes=True, sa_relationship_kwargs={"lazy": "selectin"}
@@ -68,7 +64,7 @@ class FoodPlanner(ModelBase, table=True):
 class Gear(ModelBase, table=True):
     gear_name: str
     category: str
-    weight: float = Field(default=0.0)
+    weight_g: float = Field(default=0.0)
     quantity: int = Field(default=0)
     notes: str | None = Field(default=None)
     trip_id: UUID = Field(foreign_key="trip.id", ondelete="CASCADE")
@@ -106,7 +102,6 @@ class Trip(ModelBase, table=True):
 
     name: str = Field(...)
     description: str | None = Field(default=None)
-    measurements: Unit = enum_field(Unit, Unit.IMPERIAL)
     trip_type: TripType = enum_field(TripType, TripType.LOOP)
     # Calendar dates, not instants: a trip starts on "Aug 26" wherever the viewer is.
     start_date: date | None = Field(default=None)

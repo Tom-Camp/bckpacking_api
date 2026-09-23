@@ -38,7 +38,7 @@ def test_non_nullable_fields_are_not_nullable_in_json_schema() -> None:
     properties = TripUpdate.model_json_schema()["properties"]
 
     assert properties["name"] == {"type": "string", "title": "Name"}
-    assert properties["measurements"] == {"$ref": "#/$defs/Unit"}
+    assert properties["trip_type"] == {"$ref": "#/$defs/TripType"}
     assert {"type": "null"} in properties["end_trailhead"]["anyOf"]
 
 

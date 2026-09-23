@@ -19,12 +19,12 @@ async def test_create_trip_seeds_checklist_and_food_plan(
     trip = await _create_trip(client, auth_headers)
 
     assert trip["name"] == "Wonderland Trail"
-    assert trip["measurements"] == "imperial"
     assert trip["trip_type"] == "loop"
     assert len(trip["checklist_items"]) == 9
     assert all(item["checked"] is False for item in trip["checklist_items"])
     assert trip["food_plan"] is not None
-    assert trip["food_plan"]["target_calories"] == 0
+    assert trip["food_plan"]["target_kcal_per_day"] == 2700
+    assert trip["food_plan"]["target_food_g_per_day"] == 794
     assert trip["food_plan"]["food"] == []
     assert trip["gear_list"] == []
     assert trip["notes"] == []
@@ -88,7 +88,7 @@ async def test_gear_add_update_delete(client: AsyncClient, auth_headers: dict[st
 
     add_response = await client.post(
         f"/api/v1/trips/{trip['id']}/gear",
-        json={"gear_name": "Tent", "category": "SHELTER", "weight": 1.2, "quantity": 1},
+        json={"gear_name": "Tent", "category": "SHELTER", "weight_g": 1200, "quantity": 1},
         headers=auth_headers,
     )
     assert add_response.status_code == 201
@@ -172,15 +172,15 @@ async def test_food_plan_update_and_items(client: AsyncClient, auth_headers: dic
 
     plan_response = await client.patch(
         f"/api/v1/trips/{trip['id']}/food-plan",
-        json={"target_calories": 12000, "target_food_weight": 6.5},
+        json={"target_kcal_per_day": 3000, "target_food_g_per_day": 900},
         headers=auth_headers,
     )
     assert plan_response.status_code == 200
-    assert plan_response.json()["target_calories"] == 12000
+    assert plan_response.json()["target_kcal_per_day"] == 3000
 
     add_response = await client.post(
         f"/api/v1/trips/{trip['id']}/food-plan/items",
-        json={"day": "Day 1", "name": "Oatmeal", "weight": 0.1, "calories": 400},
+        json={"day": "Day 1", "name": "Oatmeal", "weight_g": 100, "kcal": 400},
         headers=auth_headers,
     )
     assert add_response.status_code == 201
@@ -189,11 +189,11 @@ async def test_food_plan_update_and_items(client: AsyncClient, auth_headers: dic
 
     update_response = await client.patch(
         f"/api/v1/trips/{trip['id']}/food-plan/items/{food['id']}",
-        json={"calories": 450},
+        json={"kcal": 450},
         headers=auth_headers,
     )
     assert update_response.status_code == 200
-    assert update_response.json()["calories"] == 450
+    assert update_response.json()["kcal"] == 450
 
     delete_response = await client.delete(
         f"/api/v1/trips/{trip['id']}/food-plan/items/{food['id']}", headers=auth_headers
@@ -282,7 +282,7 @@ async def _gear_url(client: AsyncClient, headers: dict[str, str], trip_id: str) 
 async def _food_item_url(client: AsyncClient, headers: dict[str, str], trip_id: str) -> str:
     response = await client.post(
         f"/api/v1/trips/{trip_id}/food-plan/items",
-        json={"day": "Day 1", "name": "Oatmeal", "weight": 100, "calories": 400},
+        json={"day": "Day 1", "name": "Oatmeal", "weight_g": 100, "kcal": 400},
         headers=headers,
     )
     return f"/api/v1/trips/{trip_id}/food-plan/items/{response.json()['id']}"
@@ -294,25 +294,25 @@ async def _food_item_url(client: AsyncClient, headers: dict[str, str], trip_id: 
         ("POST", "/api/v1/trips", TRIP_PAYLOAD | {"total_distance_m": -1}, "total_distance_m"),
         ("POST", "/api/v1/trips", TRIP_PAYLOAD | {"elevation_gain_m": -1}, "elevation_gain_m"),
         ("PATCH", "{trip}", {"total_distance_m": -0.5}, "total_distance_m"),
-        ("POST", "{trip}/gear", {"gear_name": "Tent", "category": "shelter", "weight": -1}, "weight"),
+        ("POST", "{trip}/gear", {"gear_name": "Tent", "category": "shelter", "weight_g": -1}, "weight_g"),
         ("POST", "{trip}/gear", {"gear_name": "Tent", "category": "shelter", "quantity": -1}, "quantity"),
-        ("PATCH", "{gear}", {"weight": -1}, "weight"),
+        ("PATCH", "{gear}", {"weight_g": -1}, "weight_g"),
         ("PATCH", "{gear}", {"quantity": -1}, "quantity"),
         (
             "POST",
             "{trip}/food-plan/items",
-            {"day": "Day 1", "name": "Tea", "weight": -1, "calories": 0},
-            "weight",
+            {"day": "Day 1", "name": "Tea", "weight_g": -1, "kcal": 0},
+            "weight_g",
         ),
         (
             "POST",
             "{trip}/food-plan/items",
-            {"day": "Day 1", "name": "Tea", "weight": 0, "calories": -1},
-            "calories",
+            {"day": "Day 1", "name": "Tea", "weight_g": 0, "kcal": -1},
+            "kcal",
         ),
-        ("PATCH", "{food}", {"calories": -1}, "calories"),
-        ("PATCH", "{trip}/food-plan", {"target_calories": -1}, "target_calories"),
-        ("PATCH", "{trip}/food-plan", {"target_food_weight": -1}, "target_food_weight"),
+        ("PATCH", "{food}", {"kcal": -1}, "kcal"),
+        ("PATCH", "{trip}/food-plan", {"target_kcal_per_day": -1}, "target_kcal_per_day"),
+        ("PATCH", "{trip}/food-plan", {"target_food_g_per_day": -1}, "target_food_g_per_day"),
     ],
 )
 async def test_negative_numbers_are_rejected(
@@ -344,12 +344,12 @@ async def test_zero_is_allowed_for_weights_and_calories(
 
     gear = await client.post(
         f"/api/v1/trips/{trip['id']}/gear",
-        json={"gear_name": "Permit", "category": "docs", "weight": 0, "quantity": 0},
+        json={"gear_name": "Permit", "category": "docs", "weight_g": 0, "quantity": 0},
         headers=auth_headers,
     )
     food = await client.post(
         f"/api/v1/trips/{trip['id']}/food-plan/items",
-        json={"day": "Day 1", "name": "Tea", "weight": 0, "calories": 0},
+        json={"day": "Day 1", "name": "Tea", "weight_g": 0, "kcal": 0},
         headers=auth_headers,
     )
 

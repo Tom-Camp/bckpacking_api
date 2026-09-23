@@ -19,6 +19,11 @@ class UserRole(StrEnum):
     UNAUTHENTICATED = "unauthenticated"
 
 
+class Unit(StrEnum):
+    METRIC = "metric"
+    IMPERIAL = "imperial"
+
+
 class User(ModelBase, table=True):
     email: str = Field(unique=True, index=True)
     username: str = Field(unique=True, index=True)
@@ -27,6 +32,8 @@ class User(ModelBase, table=True):
     last_name: str | None = None
     picture: str | None = None
     body_weight_g: float | None = None
+    # Display preference only: stored values are always canonical units (g, m, l).
+    measurements: Unit = enum_field(Unit, Unit.IMPERIAL)
     status: UserStatus = enum_field(UserStatus, UserStatus.ACTIVE)
     role: UserRole = enum_field(UserRole, UserRole.USER)
     first_login: datetime | None = Field(

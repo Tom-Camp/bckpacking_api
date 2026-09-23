@@ -5,7 +5,7 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 from zxcvbn import zxcvbn
 
-from app.models.user import UserRole, UserStatus
+from app.models.user import Unit, UserRole, UserStatus
 from app.schemas.base import UpdateSchema
 
 _USERNAME_RE = re.compile(r"^[a-zA-Z0-9_-]{3,30}$")
@@ -52,13 +52,14 @@ class UserLogin(BaseModel):
 
 
 class UserUpdate(UpdateSchema):
-    non_nullable = frozenset({"username"})
+    non_nullable = frozenset({"username", "measurements"})
 
     username: str | None = None
     first_name: str | None = None
     last_name: str | None = None
     picture: str | None = None
     body_weight_g: float | None = Field(default=None, gt=0)
+    measurements: Unit | None = None
 
     @field_validator("username")
     @classmethod
@@ -82,6 +83,7 @@ class UserRead(BaseModel):
     last_name: str | None = None
     picture: str | None = None
     body_weight_g: float | None = None
+    measurements: Unit
     status: UserStatus
     role: UserRole
     first_login: datetime | None = None
