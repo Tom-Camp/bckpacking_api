@@ -35,7 +35,7 @@ def _is_string_column(col_type: object) -> bool:
         return False
 
 
-def _strip_strings(target: "ModelBase") -> None:
+def _strip_strings(target: ModelBase) -> None:
     mapper = class_mapper(type(target))
     for col in mapper.columns:
         if _is_string_column(col.type):

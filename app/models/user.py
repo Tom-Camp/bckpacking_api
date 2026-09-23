@@ -1,5 +1,5 @@
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 
 from sqlalchemy import Column, DateTime
 from sqlmodel import Field, Relationship
@@ -8,12 +8,12 @@ from app.models.base import ModelBase, enum_field
 from app.models.trip import Trip
 
 
-class UserStatus(str, Enum):
+class UserStatus(StrEnum):
     ACTIVE = "active"
     BLOCKED = "blocked"
 
 
-class UserRole(str, Enum):
+class UserRole(StrEnum):
     USER = "user"
     ADMIN = "admin"
     UNAUTHENTICATED = "unauthenticated"

@@ -1,6 +1,6 @@
 from datetime import datetime
-from enum import Enum
-from typing import TYPE_CHECKING, Any, Optional
+from enum import StrEnum
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from pydantic import field_validator
@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from app.models.user import User
 
 
-class ChecklistItemKey(str, Enum):
+class ChecklistItemKey(StrEnum):
     PERMIT_REQUIRED = "permit_required"
     WATER_SOURCES = "water_sources"
     RESUPPLY_POINTS = "resupply_points"
@@ -25,20 +25,20 @@ class ChecklistItemKey(str, Enum):
     ROUTE_SHARED = "route_shared"
 
 
-class TripType(str, Enum):
+class TripType(StrEnum):
     LOOP = "loop"
     OUT_AND_BACK = "out-and-back"
     POINT_TO_POINT = "point-to-point"
 
 
-class Meal(str, Enum):
+class Meal(StrEnum):
     BREAKFAST = "breakfast"
     LUNCH = "lunch"
     DINNER = "dinner"
     SNACK = "snack"
 
 
-class Unit(str, Enum):
+class Unit(StrEnum):
     METRIC = "metric"
     IMPERIAL = "imperial"
 
@@ -50,7 +50,7 @@ class TripFood(ModelBase, table=True):
     weight: float
     calories: int
     planner_id: UUID = Field(foreign_key="foodplanner.id", ondelete="CASCADE")
-    planner: "FoodPlanner" = Relationship(
+    planner: FoodPlanner = Relationship(
         back_populates="food", sa_relationship_kwargs={"lazy": "raise_on_sql"}
     )
 
@@ -62,7 +62,7 @@ class FoodPlanner(ModelBase, table=True):
     food: list[TripFood] = Relationship(
         back_populates="planner", passive_deletes=True, sa_relationship_kwargs={"lazy": "selectin"}
     )
-    trip: "Trip" = Relationship(back_populates="food_plan", sa_relationship_kwargs={"lazy": "raise_on_sql"})
+    trip: Trip = Relationship(back_populates="food_plan", sa_relationship_kwargs={"lazy": "raise_on_sql"})
 
 
 class Gear(ModelBase, table=True):
@@ -72,7 +72,7 @@ class Gear(ModelBase, table=True):
     quantity: int = Field(default=0)
     notes: str | None = Field(default=None)
     trip_id: UUID = Field(foreign_key="trip.id", ondelete="CASCADE")
-    trip: "Trip" = Relationship(back_populates="gear_list", sa_relationship_kwargs={"lazy": "raise_on_sql"})
+    trip: Trip = Relationship(back_populates="gear_list", sa_relationship_kwargs={"lazy": "raise_on_sql"})
 
     @field_validator("category", mode="before")
     @classmethod
@@ -89,7 +89,7 @@ class TripChecklistItem(ModelBase, table=True):
     item: ChecklistItemKey = enum_field(ChecklistItemKey, ChecklistItemKey.WATER_SOURCES)
     checked: bool = Field(default=False)
     details: str | None = Field(default=None)
-    trip: "Trip" = Relationship(
+    trip: Trip = Relationship(
         back_populates="checklist_items", sa_relationship_kwargs={"lazy": "raise_on_sql"}
     )
 
@@ -97,7 +97,7 @@ class TripChecklistItem(ModelBase, table=True):
 class TripNote(ModelBase, table=True):
     trip_id: UUID = Field(foreign_key="trip.id", ondelete="CASCADE")
     content: str
-    trip: "Trip" = Relationship(back_populates="notes", sa_relationship_kwargs={"lazy": "raise_on_sql"})
+    trip: Trip = Relationship(back_populates="notes", sa_relationship_kwargs={"lazy": "raise_on_sql"})
 
 
 class Trip(ModelBase, table=True):
@@ -117,8 +117,8 @@ class Trip(ModelBase, table=True):
     emergency_contact: str | None = Field(default=None)
 
     user_id: UUID = Field(foreign_key="user.id", ondelete="CASCADE")
-    user: "User" = Relationship(back_populates="trips", sa_relationship_kwargs={"lazy": "raise_on_sql"})
-    food_plan: Optional["FoodPlanner"] = Relationship(
+    user: User = Relationship(back_populates="trips", sa_relationship_kwargs={"lazy": "raise_on_sql"})
+    food_plan: FoodPlanner | None = Relationship(
         back_populates="trip",
         passive_deletes=True,
         sa_relationship_kwargs={"lazy": "selectin", "cascade": "all, delete-orphan"},
