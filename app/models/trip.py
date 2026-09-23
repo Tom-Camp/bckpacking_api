@@ -66,6 +66,7 @@ class FoodPlanner(ModelBase, table=True):
 
 
 class Gear(ModelBase, table=True):
+    gear_name: str
     category: str
     weight: float = Field(default=0.0)
     quantity: int = Field(default=0)
