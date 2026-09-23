@@ -4,6 +4,7 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from app.models.trip import ChecklistItemKey, Meal, TripType, Unit
+from app.schemas.base import UpdateSchema
 
 
 def _lowercase_category(v: str | None) -> str | None:
@@ -25,7 +26,9 @@ class TripCreate(BaseModel):
     emergency_contact: str | None = None
 
 
-class TripUpdate(BaseModel):
+class TripUpdate(UpdateSchema):
+    non_nullable = frozenset({"name", "measurements", "trip_type"})
+
     name: str | None = None
     description: str | None = None
     measurements: Unit | None = None
@@ -53,7 +56,9 @@ class GearCreate(BaseModel):
         return v.lower()
 
 
-class GearUpdate(BaseModel):
+class GearUpdate(UpdateSchema):
+    non_nullable = frozenset({"gear_name", "category", "weight", "quantity"})
+
     gear_name: str | None = None
     category: str | None = None
     weight: float | None = None
@@ -84,7 +89,9 @@ class TripNoteCreate(BaseModel):
     content: str
 
 
-class TripNoteUpdate(BaseModel):
+class TripNoteUpdate(UpdateSchema):
+    non_nullable = frozenset({"content"})
+
     content: str | None = None
 
 
@@ -98,7 +105,9 @@ class TripNoteRead(BaseModel):
     updated_at: datetime
 
 
-class ChecklistItemUpdate(BaseModel):
+class ChecklistItemUpdate(UpdateSchema):
+    non_nullable = frozenset({"checked"})
+
     checked: bool | None = None
     details: str | None = None
 
@@ -123,7 +132,9 @@ class TripFoodCreate(BaseModel):
     calories: int
 
 
-class TripFoodUpdate(BaseModel):
+class TripFoodUpdate(UpdateSchema):
+    non_nullable = frozenset({"day", "name", "meal_type", "weight", "calories"})
+
     day: str | None = None
     name: str | None = None
     meal_type: Meal | None = None
@@ -145,7 +156,9 @@ class TripFoodRead(BaseModel):
     updated_at: datetime
 
 
-class FoodPlannerUpdate(BaseModel):
+class FoodPlannerUpdate(UpdateSchema):
+    non_nullable = frozenset({"target_calories", "target_food_weight"})
+
     target_calories: int | None = None
     target_food_weight: float | None = None
 

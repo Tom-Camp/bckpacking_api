@@ -16,6 +16,7 @@ from app.schemas.trip import (
     TripNoteUpdate,
     TripUpdate,
 )
+from app.services.base import save_updates
 
 
 async def create_trip(session: AsyncSession, user_id: uuid.UUID, data: TripCreate) -> Trip:
@@ -48,13 +49,7 @@ async def get_trip(session: AsyncSession, trip_id: uuid.UUID) -> Trip | None:
 
 
 async def update_trip(session: AsyncSession, trip: Trip, data: TripUpdate) -> Trip:
-    updates = data.model_dump(exclude_none=True)
-    for key, value in updates.items():
-        setattr(trip, key, value)
-    session.add(trip)
-    await session.commit()
-    await session.refresh(trip)
-    return trip
+    return await save_updates(session, trip, data)
 
 
 async def delete_trip(session: AsyncSession, trip: Trip) -> None:
@@ -76,13 +71,7 @@ async def get_gear(session: AsyncSession, trip_id: uuid.UUID, gear_id: uuid.UUID
 
 
 async def update_gear(session: AsyncSession, gear: Gear, data: GearUpdate) -> Gear:
-    updates = data.model_dump(exclude_none=True)
-    for key, value in updates.items():
-        setattr(gear, key, value)
-    session.add(gear)
-    await session.commit()
-    await session.refresh(gear)
-    return gear
+    return await save_updates(session, gear, data)
 
 
 async def delete_gear(session: AsyncSession, gear: Gear) -> None:
@@ -106,13 +95,7 @@ async def get_note(session: AsyncSession, trip_id: uuid.UUID, note_id: uuid.UUID
 
 
 async def update_note(session: AsyncSession, note: TripNote, data: TripNoteUpdate) -> TripNote:
-    updates = data.model_dump(exclude_none=True)
-    for key, value in updates.items():
-        setattr(note, key, value)
-    session.add(note)
-    await session.commit()
-    await session.refresh(note)
-    return note
+    return await save_updates(session, note, data)
 
 
 async def delete_note(session: AsyncSession, note: TripNote) -> None:
@@ -134,25 +117,13 @@ async def get_checklist_item(
 async def update_checklist_item(
     session: AsyncSession, item: TripChecklistItem, data: ChecklistItemUpdate
 ) -> TripChecklistItem:
-    updates = data.model_dump(exclude_none=True)
-    for key, value in updates.items():
-        setattr(item, key, value)
-    session.add(item)
-    await session.commit()
-    await session.refresh(item)
-    return item
+    return await save_updates(session, item, data)
 
 
 async def update_food_planner(
     session: AsyncSession, planner: FoodPlanner, data: FoodPlannerUpdate
 ) -> FoodPlanner:
-    updates = data.model_dump(exclude_none=True)
-    for key, value in updates.items():
-        setattr(planner, key, value)
-    session.add(planner)
-    await session.commit()
-    await session.refresh(planner)
-    return planner
+    return await save_updates(session, planner, data)
 
 
 async def add_food_item(session: AsyncSession, planner_id: uuid.UUID, data: TripFoodCreate) -> TripFood:
@@ -171,13 +142,7 @@ async def get_food_item(session: AsyncSession, planner_id: uuid.UUID, food_id: u
 
 
 async def update_food_item(session: AsyncSession, food: TripFood, data: TripFoodUpdate) -> TripFood:
-    updates = data.model_dump(exclude_none=True)
-    for key, value in updates.items():
-        setattr(food, key, value)
-    session.add(food)
-    await session.commit()
-    await session.refresh(food)
-    return food
+    return await save_updates(session, food, data)
 
 
 async def delete_food_item(session: AsyncSession, food: TripFood) -> None:

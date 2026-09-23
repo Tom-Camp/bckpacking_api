@@ -9,7 +9,8 @@ from sqlmodel import select
 
 from app.auth.passwords import hash_password, verify_password
 from app.models.user import User, UserRole, UserStatus
-from app.schemas.user import UserCreate, UserLogin
+from app.schemas.user import UserCreate, UserLogin, UserUpdate
+from app.services.base import save_updates
 from app.utils.config import settings
 
 logger = structlog.get_logger()
@@ -83,18 +84,12 @@ async def get_user_by_username(session: AsyncSession, username: str) -> User | N
     return result.scalar_one_or_none()
 
 
-async def update_user(session: AsyncSession, user: User, data) -> User:
-    updates = data.model_dump(exclude_none=True)
-    if "username" in updates and updates["username"] != user.username:
-        existing = await get_user_by_username(session, updates["username"])
+async def update_user(session: AsyncSession, user: User, data: UserUpdate) -> User:
+    if data.username is not None and data.username != user.username:
+        existing = await get_user_by_username(session, data.username)
         if existing:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username already taken")
-    for key, value in updates.items():
-        setattr(user, key, value)
-    session.add(user)
-    await session.commit()
-    await session.refresh(user)
-    return user
+    return await save_updates(session, user, data)
 
 
 async def approve_user(session: AsyncSession, user: User) -> User:

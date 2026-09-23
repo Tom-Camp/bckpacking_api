@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, EmailStr, field_validator
 from zxcvbn import zxcvbn
 
 from app.models.user import UserRole, UserStatus
+from app.schemas.base import UpdateSchema
 
 _USERNAME_RE = re.compile(r"^[a-zA-Z0-9_-]{3,30}$")
 
@@ -50,7 +51,9 @@ class UserLogin(BaseModel):
     password: str
 
 
-class UserUpdate(BaseModel):
+class UserUpdate(UpdateSchema):
+    non_nullable = frozenset({"username"})
+
     username: str | None = None
     first_name: str | None = None
     last_name: str | None = None
