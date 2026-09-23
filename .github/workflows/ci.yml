@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.14"
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
+      # Same pinned hooks as local commits (ruff, ruff-format, mypy, bandit, ...).
+      # commitizen only runs at the commit-msg stage, so it's not included here.
+      - run: uvx pre-commit run --all-files --show-diff-on-failure
+
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: bp
+          POSTGRES_PASSWORD: bp
+          POSTGRES_DB: bp
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U bp -d bp"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      # app.utils.config.Settings requires these at import time
+      JWT_SECRET: ci-only-not-a-secret
+      POSTGRES_USER: bp
+      POSTGRES_PASSWORD: bp
+      POSTGRES_DB: bp
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: "5432"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.14"
+      - run: uv sync --locked
+
+      # Migrations: build the schema from scratch the way production does,
+      # then confirm the models have no changes the migration is missing.
+      - name: Migrate empty database
+        run: uv run alembic upgrade head
+      - name: Check models match migrations
+        run: uv run alembic check
+
+      - name: Create test database
+        run: psql -h localhost -U bp -d bp -c "CREATE DATABASE bp_test"
+        env:
+          PGPASSWORD: bp
+      - name: Run tests against Postgres
+        run: uv run pytest
+        env:
+          TEST_DATABASE_URL: postgresql+asyncpg://bp:bp@localhost:5432/bp_test
