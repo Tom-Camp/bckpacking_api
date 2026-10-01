@@ -135,6 +135,8 @@ class Trip(ModelBase, table=True):
     water_carry_l: float = Field(default=0)
     map_link: str | None = Field(default=None)
     emergency_contact: str | None = Field(default=None)
+    # Secret for the public read-only share link; NULL means the trip isn't shared.
+    share_token: str | None = Field(default=None, unique=True, index=True)
 
     user_id: UUID = Field(foreign_key="user.id", ondelete="CASCADE")
     user: User = Relationship(back_populates="trips", sa_relationship_kwargs={"lazy": "raise_on_sql"})

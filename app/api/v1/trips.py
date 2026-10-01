@@ -23,6 +23,7 @@ from app.schemas.trip import (
     TripNoteRead,
     TripNoteUpdate,
     TripRead,
+    TripShareRead,
     TripUpdate,
 )
 from app.services import gear as gear_service
@@ -84,6 +85,26 @@ async def delete_trip(
     session: AsyncSession = Depends(get_session),
 ) -> Response:
     await trip_service.delete_trip(session, trip)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/{trip_id}/share", response_model=TripShareRead)
+async def share_trip(
+    trip: Trip = Depends(get_owned_trip),
+    session: AsyncSession = Depends(get_session),
+) -> TripShareRead:
+    """Turn on the public read-only link; returns the existing token if the trip is already shared."""
+    share_token = await trip_service.enable_sharing(session, trip)
+    return TripShareRead(share_token=share_token)
+
+
+@router.delete("/{trip_id}/share", status_code=status.HTTP_204_NO_CONTENT)
+async def unshare_trip(
+    trip: Trip = Depends(get_owned_trip),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    """Revoke the share link. Sharing again afterwards issues a new token."""
+    await trip_service.disable_sharing(session, trip)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

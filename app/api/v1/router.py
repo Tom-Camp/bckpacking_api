@@ -4,6 +4,7 @@ from app.api.v1 import (
     admin,
     auth,
     gear,
+    shared,
     trips,
     users,
 )
@@ -14,3 +15,4 @@ router.include_router(users.router)
 router.include_router(admin.router)
 router.include_router(trips.router)
 router.include_router(gear.router)
+router.include_router(shared.router)

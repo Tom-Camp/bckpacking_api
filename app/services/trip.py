@@ -1,8 +1,10 @@
+import secrets
 import uuid
 
 from fastapi import HTTPException, status
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import contains_eager
 from sqlmodel import col, select
 
 from app.models.gear import GearItem
@@ -18,6 +20,7 @@ from app.models.trip import (
     TripType,
     shuttle_status_for,
 )
+from app.models.user import User, UserStatus
 from app.schemas.trip import (
     ChecklistItemUpdate,
     FoodPlannerUpdate,
@@ -68,6 +71,36 @@ async def get_trip(session: AsyncSession, trip_id: uuid.UUID) -> Trip | None:
         select(Trip).where(Trip.id == trip_id).execution_options(populate_existing=True)
     )
     return result.scalar_one_or_none()
+
+
+async def get_shared_trip(session: AsyncSession, share_token: str) -> Trip | None:
+    # Joins the owner so a blocked user's share links stop working, and eager-fills trip.user
+    # (raise_on_sql otherwise) for the public view's owner field.
+    result = await session.execute(
+        select(Trip)
+        .join(Trip.user)  # type: ignore[arg-type]
+        .where(Trip.share_token == share_token, User.status == UserStatus.ACTIVE)
+        .options(contains_eager(Trip.user))  # type: ignore[arg-type]
+        .execution_options(populate_existing=True)
+    )
+    return result.scalar_one_or_none()
+
+
+async def enable_sharing(session: AsyncSession, trip: Trip) -> str:
+    """Return the trip's share token, creating one if needed; an existing token is kept so sent links keep working."""
+    if trip.share_token is not None:
+        return trip.share_token
+    token = secrets.token_urlsafe(32)
+    trip.share_token = token
+    session.add(trip)
+    await session.commit()
+    return token
+
+
+async def disable_sharing(session: AsyncSession, trip: Trip) -> None:
+    trip.share_token = None
+    session.add(trip)
+    await session.commit()
 
 
 async def update_trip(session: AsyncSession, trip: Trip, data: TripUpdate) -> Trip:
