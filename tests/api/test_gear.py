@@ -38,6 +38,28 @@ async def test_create_and_read_gear_item(client: AsyncClient, auth_headers: Head
     assert fetched.json() == item
 
 
+async def test_category_is_case_insensitive_on_create_and_update(
+    client: AsyncClient, auth_headers: Headers
+) -> None:
+    item = await _create_item(client, auth_headers, category="Cooking_Water")
+
+    assert item["category"] == "cooking_water"
+    assert item["category_label"] == "Cooking & Water"
+    response = await client.patch(
+        f"/api/v1/gear/{item['id']}", json={"category": "SLEEP"}, headers=auth_headers
+    )
+    assert response.status_code == 200
+    assert response.json()["category"] == "sleep"
+    assert response.json()["category_label"] == "Sleep"
+
+
+async def test_unknown_category_is_rejected(client: AsyncClient, auth_headers: Headers) -> None:
+    response = await client.post(
+        "/api/v1/gear", json={"name": "Tent", "category": "tents"}, headers=auth_headers
+    )
+    assert response.status_code == 422
+
+
 async def test_list_gear_items_is_scoped_to_owner(
     client: AsyncClient, auth_headers: Headers, other_auth_headers: Headers
 ) -> None:

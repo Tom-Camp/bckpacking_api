@@ -5,6 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.passwords import hash_password
 from app.models import GearItem, GearKind, Trip, TripGear, User
+from app.models.gear import GearCategory
 
 hashed_password: str = hash_password("r1GRB3$ZB0*mbwymrJuJcdUTtdqESdf%AuD")
 
@@ -20,17 +21,15 @@ async def _make_user_with_trip_and_item(session: AsyncSession, email: str) -> tu
     return user, trip, item
 
 
-async def test_gear_item_defaults_and_category_is_lowercased(session: AsyncSession) -> None:
-    # Table classes bypass Pydantic validation on direct __init__, so the validator only
-    # runs via model_validate() (how FastAPI builds models from request payloads).
+async def test_gear_item_defaults(session: AsyncSession) -> None:
     _, _, owner_item = await _make_user_with_trip_and_item(session, "gear@example.com")
 
-    item = GearItem.model_validate({"user_id": owner_item.user_id, "name": "Quilt", "category": "SLEEP"})
+    item = GearItem(user_id=owner_item.user_id, name="Quilt")
     session.add(item)
     await session.commit()
     await session.refresh(item)
 
-    assert item.category == "sleep"
+    assert item.category == GearCategory.MISCELLANEOUS
     assert item.kind == GearKind.BASE
     assert item.weight_g == 0
     assert item.archived_at is None
