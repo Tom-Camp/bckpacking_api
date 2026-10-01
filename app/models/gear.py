@@ -2,7 +2,6 @@ from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
 
-from pydantic import field_validator
 from sqlalchemy import Column, DateTime
 from sqlmodel import Field
 
@@ -51,10 +50,3 @@ class GearItem(ModelBase, table=True):
     archived_at: datetime | None = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
     )
-
-    @field_validator("category", mode="before")
-    @classmethod
-    def lowercase_category(cls, v: object) -> object:
-        if isinstance(v, str):
-            return v.lower()
-        return v

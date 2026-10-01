@@ -7,7 +7,8 @@ from app.models.gear import GearCategory, GearKind
 from app.schemas.base import UpdateSchema
 
 
-def _lowercase(v: str | None) -> str | None:
+def _lowercase(v: object) -> object:
+    # Runs before enum coercion (mode="before") so "Shelter" is accepted and still becomes a GearCategory.
     return v.lower() if isinstance(v, str) else v
 
 
@@ -18,10 +19,10 @@ class GearItemCreate(BaseModel):
     kind: GearKind = GearKind.BASE
     notes: str | None = None
 
-    @field_validator("category")
+    @field_validator("category", mode="before")
     @classmethod
-    def lowercase_category(cls, v: str) -> str:
-        return v.lower()
+    def lowercase_category(cls, v: object) -> object:
+        return _lowercase(v)
 
 
 class GearItemUpdate(UpdateSchema):
@@ -33,9 +34,9 @@ class GearItemUpdate(UpdateSchema):
     kind: GearKind | None = None
     notes: str | None = None
 
-    @field_validator("category")
+    @field_validator("category", mode="before")
     @classmethod
-    def lowercase_category(cls, v: str | None) -> str | None:
+    def lowercase_category(cls, v: object) -> object:
         return _lowercase(v)
 
 
@@ -53,5 +54,5 @@ class GearItemRead(BaseModel):
     updated_at: datetime
 
     @computed_field
-    def status_label(self) -> str:
+    def category_label(self) -> str:
         return self.category.label
