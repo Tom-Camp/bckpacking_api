@@ -310,7 +310,7 @@ async def test_zero_is_allowed_for_weights_and_calories(
     trip = await _create_trip(client, auth_headers, total_distance_m=0, elevation_gain_m=0)
 
     gear = await client.post(
-        "/api/v1/gear", json={"name": "Permit", "category": "docs", "weight_g": 0}, headers=auth_headers
+        "/api/v1/gear", json={"name": "Permit", "category": "misc", "weight_g": 0}, headers=auth_headers
     )
     food = await client.post(
         f"/api/v1/trips/{trip['id']}/food-plan/items",

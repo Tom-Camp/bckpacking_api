@@ -1,8 +1,8 @@
-"""initial schema
+"""initial shcema
 
-Revision ID: e0d4bf639958
+Revision ID: 3caafb9af9fb
 Revises:
-Create Date: 2026-09-23 16:54:27.573724
+Create Date: 2026-09-30 19:49:37.168694
 
 """
 
@@ -14,7 +14,7 @@ import sqlmodel.sql.sqltypes
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "e0d4bf639958"
+revision: str = "3caafb9af9fb"
 down_revision: str | Sequence[str] | None = None
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
@@ -63,7 +63,21 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.Column("user_id", sa.Uuid(), nullable=False),
         sa.Column("name", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-        sa.Column("category", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column(
+            "category",
+            sa.Enum(
+                "clothing",
+                "cooking_water",
+                "misc",
+                "navigation_safety",
+                "shelter",
+                "sleep",
+                name="gearcategory",
+                native_enum=False,
+                length=32,
+            ),
+            nullable=False,
+        ),
         sa.Column("weight_g", sa.Float(), nullable=False),
         sa.Column(
             "kind",

@@ -29,7 +29,7 @@ async def _trip_gear(client: AsyncClient, headers: Headers, trip_id: str) -> lis
 
 
 async def test_create_and_read_gear_item(client: AsyncClient, auth_headers: Headers) -> None:
-    item = await _create_item(client, auth_headers, category="SHELTER")
+    item = await _create_item(client, auth_headers, category="shelter")
 
     assert item["category"] == "shelter"
     assert item["kind"] == "base"
@@ -193,7 +193,7 @@ async def test_trip_gear_from_another_trip_is_not_found(client: AsyncClient, aut
 
 async def test_copy_gear_from_trip(client: AsyncClient, auth_headers: Headers) -> None:
     tent = await _create_item(client, auth_headers, name="Tent")
-    stove = await _create_item(client, auth_headers, name="Stove", category="cook")
+    stove = await _create_item(client, auth_headers, name="Stove", category="cooking_water")
     old_quilt = await _create_item(client, auth_headers, name="Old quilt", category="sleep")
     source = await _create_trip(client, auth_headers, name="Source")
     await _pack(client, auth_headers, source["id"], tent["id"], packed=True)
