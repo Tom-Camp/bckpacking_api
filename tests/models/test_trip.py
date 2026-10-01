@@ -94,7 +94,7 @@ async def test_trip_gear_list_loads_closet_items(session: AsyncSession) -> None:
     user = await _make_user(session, "gearlist@example.com")
     trip = await _make_trip(session, user)
     tent = GearItem(user_id=user.id, name="Tent", category="shelter", weight_g=1200)
-    stove = GearItem(user_id=user.id, name="Stove", category="cook", weight_g=500)
+    stove = GearItem(user_id=user.id, name="Stove", category="cooking_water", weight_g=500)
     session.add_all([tent, stove])
     await session.commit()
 
