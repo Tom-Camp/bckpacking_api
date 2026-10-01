@@ -1,3 +1,4 @@
+import re
 import time
 import uuid
 from collections.abc import Awaitable, Callable
@@ -8,6 +9,13 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 logger = structlog.get_logger()
+
+# Share-link tokens are credentials carried in the path; never write them to the logs.
+_SHARE_TOKEN_PATH = re.compile(r"(/shared/trips/)[^/]+")
+
+
+def redact_path(path: str) -> str:
+    return _SHARE_TOKEN_PATH.sub(r"\1<redacted>", path)
 
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
@@ -20,7 +28,7 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         structlog.contextvars.bind_contextvars(
             request_id=str(uuid.uuid4()),
             method=request.method,
-            path=request.url.path,
+            path=redact_path(request.url.path),
         )
 
         start = time.perf_counter()

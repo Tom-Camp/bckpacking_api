@@ -3,6 +3,7 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, computed_field, field_validator
 
+from app.models.gear import GearCategory, GearKind
 from app.models.trip import ChecklistItemKey, ChecklistStatus, Meal, TripType
 from app.schemas.base import UpdateSchema
 from app.schemas.gear import GearItemRead
@@ -171,11 +172,12 @@ class FoodPlannerRead(BaseModel):
     updated_at: datetime
 
 
-class TripRead(BaseModel):
+class _TripReadBase(BaseModel):
+    """Fields shared by the owner's view and the public share view."""
+
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
-    user_id: uuid.UUID
     name: str
     description: str | None
     area: str | None
@@ -188,11 +190,8 @@ class TripRead(BaseModel):
     elevation_gain_m: float | None
     water_carry_l: float
     map_link: str | None
-    emergency_contact: str | None
     food_plan: FoodPlannerRead | None
-    gear_list: list[TripGearRead]
     checklist_items: list[ChecklistItemRead]
-    notes: list[TripNoteRead]
     created_at: datetime
     updated_at: datetime
 
@@ -201,3 +200,52 @@ class TripRead(BaseModel):
     def checklist_ready(self) -> bool:
         """True when no checklist item is still to do (done and not-applicable both count)."""
         return all(item.status != ChecklistStatus.TODO for item in self.checklist_items)
+
+
+class TripRead(_TripReadBase):
+    user_id: uuid.UUID
+    emergency_contact: str | None
+    gear_list: list[TripGearRead]
+    notes: list[TripNoteRead]
+    share_token: str | None
+
+
+class TripShareRead(BaseModel):
+    share_token: str
+
+
+class SharedGearItemRead(BaseModel):
+    """A closet item as seen through a share link: no private notes or archive state."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    name: str
+    category: GearCategory
+    weight_g: float
+    kind: GearKind
+
+
+class SharedTripGearRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    gear_item: SharedGearItemRead
+    quantity: int
+    packed: bool
+
+
+class SharedTripOwnerRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    username: str
+
+
+class SharedTripRead(_TripReadBase):
+    """Public read-only view of a shared trip.
+
+    A separate allowlist rather than TripRead minus fields, so new Trip columns stay private by default.
+    Omits user_id, emergency_contact, notes, and the share token itself.
+    """
+
+    owner: SharedTripOwnerRead = Field(validation_alias="user")
+    gear_list: list[SharedTripGearRead]
