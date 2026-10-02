@@ -56,3 +56,8 @@ class GearItemRead(BaseModel):
     @computed_field
     def category_label(self) -> str:
         return self.category.label
+
+
+class GearCategoryOption(BaseModel):
+    value: GearCategory
+    label: str

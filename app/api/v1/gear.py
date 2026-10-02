@@ -5,9 +5,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import require_active_user
 from app.db import get_session
-from app.models.gear import GearItem
+from app.models.gear import GearCategory, GearItem
 from app.models.user import User
-from app.schemas.gear import GearItemCreate, GearItemRead, GearItemUpdate
+from app.schemas.gear import GearCategoryOption, GearItemCreate, GearItemRead, GearItemUpdate
 from app.services import gear as gear_service
 
 router = APIRouter(prefix="/gear", tags=["gear"])
@@ -42,6 +42,11 @@ async def list_gear_items(
 ) -> list[GearItemRead]:
     items = await gear_service.list_items(session, user.id, include_archived=include_archived)
     return [GearItemRead.model_validate(i) for i in items]
+
+
+@router.get("/categories", response_model=list[GearCategoryOption])
+def list_gear_categories() -> list[GearCategoryOption]:
+    return [GearCategoryOption(value=c, label=c.label) for c in GearCategory]
 
 
 @router.get("/{item_id}", response_model=GearItemRead)
