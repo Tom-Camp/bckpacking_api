@@ -252,9 +252,10 @@ async def test_copy_gear_from_another_users_or_unknown_trip_is_not_found(
     assert [r.status_code for r in responses] == [404, 404]
 
 
-async def test_gear_categories(client: AsyncClient) -> None:
+async def test_gear_categories(client: AsyncClient, auth_headers: Headers) -> None:
     response = await client.get(
         "/api/v1/gear/categories",
+        headers=auth_headers,
     )
 
     assert response.status_code == 200
