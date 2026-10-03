@@ -45,7 +45,7 @@ async def list_gear_items(
 
 
 @router.get("/categories", response_model=list[GearCategoryOption])
-def list_gear_categories(
+async def list_gear_categories(
     user: User = Depends(require_active_user),
 ) -> list[GearCategoryOption]:
     return [GearCategoryOption(value=c, label=c.label) for c in GearCategory]

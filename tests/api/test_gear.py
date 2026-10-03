@@ -261,8 +261,7 @@ async def test_gear_categories(client: AsyncClient, auth_headers: Headers) -> No
     cats: list[dict[str, Any]] = [dict(GearCategoryOption(value=c, label=c.label)) for c in GearCategory]
     assert response.status_code == 200
     assert isinstance(response.json(), list)
-    assert len(response.json()) == 6
-    assert all(d.get("label") is not None for d in response.json())
+    assert all(d.get("label") for d in response.json())
     assert cats == response.json()
 
 
