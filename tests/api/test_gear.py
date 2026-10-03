@@ -2,6 +2,7 @@ from typing import Any, cast
 
 from httpx import AsyncClient
 
+from app.schemas.gear import GearCategory, GearCategoryOption
 from tests.api.test_trips import _create_trip
 
 Headers = dict[str, str]
@@ -252,11 +253,19 @@ async def test_copy_gear_from_another_users_or_unknown_trip_is_not_found(
     assert [r.status_code for r in responses] == [404, 404]
 
 
-async def test_gear_categories(client: AsyncClient) -> None:
+async def test_gear_categories(client: AsyncClient, auth_headers: Headers) -> None:
     response = await client.get(
         "/api/v1/gear/categories",
+        headers=auth_headers,
     )
-
+    cats: list[dict[str, Any]] = [dict(GearCategoryOption(value=c, label=c.label)) for c in GearCategory]
     assert response.status_code == 200
     assert isinstance(response.json(), list)
-    assert len(response.json()) == 6
+    assert all(d.get("label") for d in response.json())
+    assert cats == response.json()
+
+
+async def test_gear_categories_no_auth(client: AsyncClient) -> None:
+    response = await client.get("/api/v1/gear/categories")
+
+    assert response.status_code == 401
