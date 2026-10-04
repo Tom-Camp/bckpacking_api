@@ -41,7 +41,7 @@ jobs:
           fail_on_severity: 'high'
 
       - name: Run OpenGrep
-        uses: huntridge-labs/argus/.github/actions/scanner-opengrep@f6fb17dc494b545f4c6479bb01d875a831414c4e # 0.4.0
+        uses: huntridge-labs/argus/.github/actions/scanner-opengrep@3fb133a5d03ec81a7a534cf451dd19991e04a975 # 1.12.6
         with:
           enable_code_security: 'true'
           fail_on_severity: 'high'
