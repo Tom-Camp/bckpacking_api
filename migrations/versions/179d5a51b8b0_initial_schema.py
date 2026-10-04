@@ -1,8 +1,8 @@
-"""initial shcema
+"""initial schema
 
-Revision ID: 3caafb9af9fb
+Revision ID: 179d5a51b8b0
 Revises:
-Create Date: 2026-09-30 19:49:37.168694
+Create Date: 2026-10-04 15:55:43.031732
 
 """
 
@@ -14,7 +14,7 @@ import sqlmodel.sql.sqltypes
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "3caafb9af9fb"
+revision: str = "179d5a51b8b0"
 down_revision: str | Sequence[str] | None = None
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
@@ -112,11 +112,13 @@ def upgrade() -> None:
         sa.Column("water_carry_l", sa.Float(), nullable=False),
         sa.Column("map_link", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
         sa.Column("emergency_contact", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+        sa.Column("share_token", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
         sa.Column("user_id", sa.Uuid(), nullable=False),
         sa.CheckConstraint("end_date >= start_date", name="ck_trip_end_date_after_start_date"),
         sa.ForeignKeyConstraint(["user_id"], ["user.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )
+    op.create_index(op.f("ix_trip_share_token"), "trip", ["share_token"], unique=True)
     op.create_table(
         "foodplanner",
         sa.Column("id", sa.Uuid(), nullable=False),
@@ -217,6 +219,7 @@ def downgrade() -> None:
     op.drop_table("tripgear")
     op.drop_table("tripchecklistitem")
     op.drop_table("foodplanner")
+    op.drop_index(op.f("ix_trip_share_token"), table_name="trip")
     op.drop_table("trip")
     op.drop_index(op.f("ix_gearitem_user_id"), table_name="gearitem")
     op.drop_table("gearitem")
