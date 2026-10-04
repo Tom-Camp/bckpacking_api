@@ -68,7 +68,7 @@ jobs:
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
       - name: Generate SBOM
-        uses: huntridge-labs/argus/.github/actions/scanner-syft@f6fb17dc494b545f4c6479bb01d875a831414c4e # 0.4.0
+        uses: huntridge-labs/argus/.github/actions/scanner-syft@3fb133a5d03ec81a7a534cf451dd19991e04a975 # 1.12.6
         with:
           scan_path: '.'
           output_format: 'cyclonedx-json'
