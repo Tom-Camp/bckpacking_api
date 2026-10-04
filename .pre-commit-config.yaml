@@ -14,8 +14,8 @@ repos:
       - id: check-added-large-files
       - id: detect-private-key
 
-  # ruff and mypy run from the uv environment so their versions come from uv.lock,
-  # matching `uv run ruff` / `uv run mypy` and CI.
+  # ruff, mypy and commitizen run from the uv environment so their versions come
+  # from uv.lock, matching `uv run ruff` / `uv run mypy` / `uv run cz` and CI.
   - repo: local
     hooks:
       - id: ruff
@@ -34,9 +34,8 @@ repos:
         language: system
         types: [python]
         pass_filenames: false
-
-  - repo: https://github.com/commitizen-tools/commitizen
-    rev: v4.18.0
-    hooks:
       - id: commitizen
+        name: commitizen check
+        entry: uv run cz check --allow-abort --commit-msg-file
+        language: system
         stages: [commit-msg]
