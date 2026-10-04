@@ -5,6 +5,8 @@ updates:
     target-branch: "develop"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: "ci"
 
@@ -13,6 +15,8 @@ updates:
     target-branch: "develop"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
     commit-message:
       prefix: "build"
       include: "scope"
