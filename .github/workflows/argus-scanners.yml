@@ -16,11 +16,13 @@ on:
   schedule:
     - cron: '0 6 * * 1' # Weekly Monday 6 AM UTC
 
+# Read-only by default; jobs that upload SARIF or post PR comments widen this.
 permissions:
   contents: read
-  security-events: write
-  pull-requests: write
-  actions: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   # ============================================
@@ -29,9 +31,16 @@ jobs:
   sast-scanning:
     name: SAST Scanners
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      security-events: write # upload SARIF to code scanning
+      pull-requests: write # Bandit and Gitleaks PR comments
     steps:
       - name: Checkout repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
 
       - name: Run Bandit (Python)
         uses: huntridge-labs/argus/.github/actions/scanner-bandit@3fb133a5d03ec81a7a534cf451dd19991e04a975 # 1.12.6
@@ -63,9 +72,15 @@ jobs:
   sbom-generation:
     name: Generate SBOM
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # No write scopes: Syft uploads no SARIF, and its "Dependency Graph" step
+    # (anchore publish-sbom) only acts on release events. Its PR comment is off;
+    # the Security Summary comment already includes the SBOM results.
     steps:
       - name: Checkout repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
 
       - name: Generate SBOM
         uses: huntridge-labs/argus/.github/actions/scanner-syft@3fb133a5d03ec81a7a534cf451dd19991e04a975 # 1.12.6
@@ -73,6 +88,7 @@ jobs:
           scan_path: '.'
           output_format: 'cyclonedx-json'
           enable_code_security: 'true'
+          post_pr_comment: 'false'
 
   # ============================================
   # Security Summary
@@ -80,6 +96,11 @@ jobs:
   security-summary:
     name: Security Summary
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read # download scanner summary artifacts
+      pull-requests: write # combined PR comment
     needs:
       - sast-scanning
       - sbom-generation
@@ -87,6 +108,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
 
       - name: Download all scanner summaries
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1

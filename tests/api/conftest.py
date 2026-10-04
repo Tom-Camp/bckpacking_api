@@ -11,7 +11,7 @@ from app.db import get_session
 from app.main import app
 from app.models.user import User, UserStatus
 
-_PASSWORD = "r1GRB3$ZB0*mbwymrJuJcdUTtdqESdf%AuD"
+_PASSWORD = "r1GRB3$ZB0*mbwymrJuJcdUTtdqESdf%AuD"  # nosec B105
 
 
 @pytest_asyncio.fixture
