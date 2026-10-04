@@ -96,7 +96,7 @@ jobs:
         continue-on-error: true
 
       - name: Generate combined summary
-        uses: huntridge-labs/argus/.github/actions/security-summary@f6fb17dc494b545f4c6479bb01d875a831414c4e # 0.4.0
+        uses: huntridge-labs/argus/.github/actions/security-summary@3fb133a5d03ec81a7a534cf451dd19991e04a975 # 1.12.6
         with:
           post_pr_comment: 'true'
         continue-on-error: true
