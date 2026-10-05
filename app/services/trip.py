@@ -5,7 +5,8 @@ from fastapi import HTTPException, status
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import contains_eager
-from sqlmodel import col, select
+from sqlalchemy.orm.attributes import set_committed_value
+from sqlmodel import col, select, update
 
 from app.models.gear import GearItem
 from app.models.trip import (
@@ -90,10 +91,23 @@ async def enable_sharing(session: AsyncSession, trip: Trip) -> str:
     """Return the trip's share token, creating one if needed; an existing token is kept so sent links keep working."""
     if trip.share_token is not None:
         return trip.share_token
-    token = secrets.token_urlsafe(32)
-    trip.share_token = token
-    session.add(trip)
+    # Only fill an empty token, so concurrent requests can't overwrite each other's: on Postgres the
+    # second UPDATE waits on the row lock, re-checks IS NULL and matches nothing. synchronize_session
+    # must be off, or the in-Python evaluation sets the new token on the stale `trip` even when no row
+    # was updated.
+    await session.execute(
+        update(Trip)
+        .where(col(Trip.id) == trip.id, col(Trip.share_token).is_(None))
+        .values(share_token=secrets.token_urlsafe(32))
+        .execution_options(synchronize_session=False)
+    )
+    # A column select bypasses the identity map, so this is whichever token actually won. Read before
+    # committing: if this request's UPDATE matched, it still holds the row lock.
+    token: str = (
+        await session.execute(select(Trip.share_token).where(col(Trip.id) == trip.id))
+    ).scalar_one()
     await session.commit()
+    set_committed_value(trip, "share_token", token)
     return token
 
 
