@@ -3,11 +3,15 @@ from typing import Any, cast
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlmodel import col, select
 
 from app.main import app
 from app.middleware import redact_path
+from app.models.trip import Trip
 from app.models.user import User, UserStatus
+from app.services import trip as trip_service
 
 TRIP_PAYLOAD = {"name": "Wonderland Trail", "emergency_contact": "Jo, 555-0100"}
 
@@ -36,6 +40,26 @@ async def test_share_is_idempotent_and_shown_to_owner(
     assert await _share(client, trip["id"], auth_headers) == token
     response = await client.get(f"/api/v1/trips/{trip['id']}", headers=auth_headers)
     assert response.json()["share_token"] == token
+
+
+async def test_enable_sharing_keeps_a_token_set_behind_a_stale_trip(
+    client: AsyncClient, session: AsyncSession, auth_headers: dict[str, str]
+) -> None:
+    # Simulates losing the race: another request stored a token after this one loaded the trip.
+    trip_id = uuid.UUID((await _create_trip(client, auth_headers))["id"])
+    trip = await session.get(Trip, trip_id)
+    assert trip is not None and trip.share_token is None
+    existing = "token-from-the-other-request"
+    table = Trip.__table__  # type: ignore[attr-defined]
+    await session.execute(update(table).where(table.c.id == trip_id).values(share_token=existing))
+    await session.commit()
+
+    token = await trip_service.enable_sharing(session, trip)
+
+    assert token == existing
+    assert trip.share_token == existing
+    stored = (await session.execute(select(Trip.share_token).where(col(Trip.id) == trip_id))).scalar_one()
+    assert stored == existing
 
 
 CORE_KEYS = {
