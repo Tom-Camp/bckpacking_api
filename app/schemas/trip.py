@@ -1,10 +1,11 @@
 import uuid
+from collections.abc import Sequence
 from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, computed_field, field_validator
 
 from app.models.gear import GearCategory, GearKind
-from app.models.trip import ChecklistItemKey, ChecklistStatus, Meal, TripType
+from app.models.trip import ChecklistItemKey, ChecklistStatus, Meal, Trip, TripType
 from app.schemas.base import UpdateSchema
 from app.schemas.gear import GearItemRead
 
@@ -37,7 +38,17 @@ class TripCreate(BaseModel):
 
 
 class TripUpdate(UpdateSchema):
-    non_nullable = frozenset({"name", "trip_type", "water_carry_l"})
+    non_nullable = frozenset(
+        {
+            "name",
+            "trip_type",
+            "water_carry_l",
+            "share_gear",
+            "share_food",
+            "share_checklist",
+            "share_emergency_contact",
+        }
+    )
 
     name: str | None = None
     description: str | None = None
@@ -52,6 +63,10 @@ class TripUpdate(UpdateSchema):
     water_carry_l: float | None = Field(default=None, ge=0)
     map_link: str | None = None
     emergency_contact: str | None = None
+    share_gear: bool | None = None
+    share_food: bool | None = None
+    share_checklist: bool | None = None
+    share_emergency_contact: bool | None = None
 
 
 class TripGearCreate(BaseModel):
@@ -172,9 +187,12 @@ class FoodPlannerRead(BaseModel):
     updated_at: datetime
 
 
-class _TripReadBase(BaseModel):
-    """Fields shared by the owner's view and the public share view."""
+def is_checklist_ready(items: Sequence[ChecklistItemRead | SharedChecklistItemRead]) -> bool:
+    """True when no checklist item is still to do (done and not-applicable both count)."""
+    return all(item.status != ChecklistStatus.TODO for item in items)
 
+
+class TripRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
@@ -194,24 +212,29 @@ class _TripReadBase(BaseModel):
     checklist_items: list[ChecklistItemRead]
     created_at: datetime
     updated_at: datetime
-
-    @computed_field  # type: ignore[prop-decorator]
-    @property
-    def checklist_ready(self) -> bool:
-        """True when no checklist item is still to do (done and not-applicable both count)."""
-        return all(item.status != ChecklistStatus.TODO for item in self.checklist_items)
-
-
-class TripRead(_TripReadBase):
     user_id: uuid.UUID
     emergency_contact: str | None
     gear_list: list[TripGearRead]
     notes: list[TripNoteRead]
     share_token: str | None
+    share_gear: bool
+    share_food: bool
+    share_checklist: bool
+    share_emergency_contact: bool
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def checklist_ready(self) -> bool:
+        return is_checklist_ready(self.checklist_items)
 
 
 class TripShareRead(BaseModel):
     share_token: str
+
+
+# Public share-link schemas. Each is its own allowlist rather than an owner schema minus fields, so a field
+# added to a model or owner schema stays private until it's added here on purpose. None carry ids or
+# timestamps.
 
 
 class SharedGearItemRead(BaseModel):
@@ -224,14 +247,47 @@ class SharedGearItemRead(BaseModel):
     weight_g: float
     kind: GearKind
 
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def category_label(self) -> str:
+        # The public page can't call the authenticated /gear/categories to look up labels.
+        return self.category.label
+
 
 class SharedTripGearRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    id: uuid.UUID
     gear_item: SharedGearItemRead
     quantity: int
     packed: bool
+
+
+class SharedChecklistItemRead(BaseModel):
+    """Item and status only: details are free text that may hold personal info."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    item: ChecklistItemKey
+    status: ChecklistStatus
+
+
+class SharedTripFoodRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    day: int
+    name: str
+    meal_type: Meal
+    servings: float
+    weight_g: float
+    kcal: int
+
+
+class SharedFoodPlannerRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    target_kcal_per_day: int
+    target_food_g_per_day: float
+    food: list[SharedTripFoodRead]
 
 
 class SharedTripOwnerRead(BaseModel):
@@ -240,12 +296,63 @@ class SharedTripOwnerRead(BaseModel):
     username: str
 
 
-class SharedTripRead(_TripReadBase):
-    """Public read-only view of a shared trip.
+class SharedTripRead(BaseModel):
+    """Public read-only view of a shared trip; build it with from_trip(), which applies the owner's toggles.
 
-    A separate allowlist rather than TripRead minus fields, so new Trip columns stay private by default.
-    Omits user_id, emergency_contact, notes, and the share token itself.
+    Core details are always present. Each optional section is always present as a key: null when the owner
+    hasn't shared it, and [] when it's shared but empty. Section fields deliberately have no default, so the
+    OpenAPI schema marks them required and the UI's generated type keeps the key non-optional.
     """
 
-    owner: SharedTripOwnerRead = Field(validation_alias="user")
-    gear_list: list[SharedTripGearRead]
+    name: str
+    description: str | None
+    area: str | None
+    trip_type: TripType
+    start_date: date | None
+    end_date: date | None
+    start_trailhead: str | None
+    end_trailhead: str | None
+    total_distance_m: float | None
+    elevation_gain_m: float | None
+    water_carry_l: float
+    map_link: str | None
+    owner: SharedTripOwnerRead
+    gear_list: list[SharedTripGearRead] | None
+    food_plan: SharedFoodPlannerRead | None
+    checklist_items: list[SharedChecklistItemRead] | None
+    emergency_contact: str | None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def checklist_ready(self) -> bool | None:
+        """Follows the checklist toggle: null when the checklist isn't shared."""
+        return None if self.checklist_items is None else is_checklist_ready(self.checklist_items)
+
+    @classmethod
+    def from_trip(cls, trip: Trip) -> SharedTripRead:
+        """Build the public view; trip.user must already be loaded (it's raise_on_sql)."""
+        return cls(
+            name=trip.name,
+            description=trip.description,
+            area=trip.area,
+            trip_type=trip.trip_type,
+            start_date=trip.start_date,
+            end_date=trip.end_date,
+            start_trailhead=trip.start_trailhead,
+            end_trailhead=trip.end_trailhead,
+            total_distance_m=trip.total_distance_m,
+            elevation_gain_m=trip.elevation_gain_m,
+            water_carry_l=trip.water_carry_l,
+            map_link=trip.map_link,
+            owner=SharedTripOwnerRead.model_validate(trip.user),
+            gear_list=[SharedTripGearRead.model_validate(line) for line in trip.gear_list]
+            if trip.share_gear
+            else None,
+            food_plan=SharedFoodPlannerRead.model_validate(trip.food_plan)
+            if trip.share_food and trip.food_plan is not None
+            else None,
+            checklist_items=[SharedChecklistItemRead.model_validate(item) for item in trip.checklist_items]
+            if trip.share_checklist
+            else None,
+            emergency_contact=trip.emergency_contact if trip.share_emergency_contact else None,
+        )
