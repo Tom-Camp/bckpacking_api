@@ -26,4 +26,4 @@ async def get_shared_trip(
     # The token is the credential: keep it out of caches and outbound Referer headers.
     response.headers["Cache-Control"] = "no-store"
     response.headers["Referrer-Policy"] = "no-referrer"
-    return SharedTripRead.model_validate(trip)
+    return SharedTripRead.from_trip(trip)

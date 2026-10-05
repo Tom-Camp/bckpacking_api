@@ -3,7 +3,7 @@ from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, Column, ForeignKey, UniqueConstraint, event
+from sqlalchemy import CheckConstraint, Column, ForeignKey, UniqueConstraint, event, false
 from sqlmodel import Field, Relationship
 
 from app.models.base import ModelBase, enum_field
@@ -137,6 +137,12 @@ class Trip(ModelBase, table=True):
     emergency_contact: str | None = Field(default=None)
     # Secret for the public read-only share link; NULL means the trip isn't shared.
     share_token: str | None = Field(default=None, unique=True, index=True)
+    # Which optional sections the share link shows (core details always do). Preferences that outlive
+    # unsharing, so sharing again restores the same scope.
+    share_gear: bool = Field(default=False, sa_column_kwargs={"server_default": false()})
+    share_food: bool = Field(default=False, sa_column_kwargs={"server_default": false()})
+    share_checklist: bool = Field(default=False, sa_column_kwargs={"server_default": false()})
+    share_emergency_contact: bool = Field(default=False, sa_column_kwargs={"server_default": false()})
 
     user_id: UUID = Field(foreign_key="user.id", ondelete="CASCADE")
     user: User = Relationship(back_populates="trips", sa_relationship_kwargs={"lazy": "raise_on_sql"})
