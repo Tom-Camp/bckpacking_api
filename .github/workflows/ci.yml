@@ -5,25 +5,37 @@ on:
     branches: [main, develop]
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
       - uses: astral-sh/setup-uv@d0d8abe699bfb85fec6de9f7adb5ae17292296ff # v6
         with:
           python-version: "3.14"
       - run: uv sync --locked
       - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
-          path: ~/.cache/pre-commit
-          key: pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
-      # Same pinned hooks as local commits (ruff, ruff-format, mypy, bandit, ...).
-      # commitizen only runs at the commit-msg stage, so it's not included here.
-      - run: uvx pre-commit run --all-files --show-diff-on-failure
+          path: ~/.cache/prek
+          key: prek-${{ hashFiles('.pre-commit-config.yaml', 'uv.lock') }}
+      # Same hooks and prek version (from uv.lock) as local commits: the pre-commit-hooks checks,
+      # ruff (incl. its S security rules), ruff-format and mypy. commitizen only runs at
+      # the commit-msg stage, so it's not included here.
+      - run: uv run prek run --all-files --show-diff-on-failure
 
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     services:
       postgres:
         image: postgres:17-alpine
@@ -48,6 +60,8 @@ jobs:
       POSTGRES_PORT: "5432"
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
       - uses: astral-sh/setup-uv@d0d8abe699bfb85fec6de9f7adb5ae17292296ff # v6
         with:
           python-version: "3.14"
