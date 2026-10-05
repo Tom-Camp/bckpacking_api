@@ -2,13 +2,12 @@ import uuid
 from typing import Any, cast
 
 import pytest
-from httpx import AsyncClient
+from httpx import AsyncClient, Response
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col, select
 
 from app.main import app
-from app.middleware import redact_path
 from app.models.trip import Trip
 from app.models.user import User, UserStatus
 from app.services import trip as trip_service
@@ -118,8 +117,12 @@ async def _shared_trip_with_everything(client: AsyncClient, headers: dict[str, s
     return trip["id"], await _share(client, trip["id"], headers)
 
 
+async def _fetch_shared(client: AsyncClient, token: str) -> Response:
+    return await client.get("/api/v1/shared/trip", headers={"X-Share-Token": token})
+
+
 async def _get_shared(client: AsyncClient, token: str) -> dict[str, Any]:
-    response = await client.get(f"/api/v1/shared/trips/{token}")
+    response = await _fetch_shared(client, token)
     assert response.status_code == 200
     return cast(dict[str, Any], response.json())
 
@@ -129,7 +132,7 @@ async def test_shared_trip_with_toggles_off_shows_only_core_details(
 ) -> None:
     _, token = await _shared_trip_with_everything(client, auth_headers)
 
-    response = await client.get(f"/api/v1/shared/trips/{token}")
+    response = await _fetch_shared(client, token)
 
     assert response.status_code == 200
     assert response.headers["cache-control"] == "no-store"
@@ -274,8 +277,21 @@ def test_trip_read_only_adds_share_flags() -> None:
 
 
 async def test_unknown_token_404(client: AsyncClient) -> None:
-    response = await client.get("/api/v1/shared/trips/not-a-real-token")
+    response = await _fetch_shared(client, "not-a-real-token")
     assert response.status_code == 404
+    assert response.json() == {"detail": "Trip not found"}
+
+
+@pytest.mark.parametrize("headers", [{}, {"X-Share-Token": ""}], ids=["missing", "empty"])
+async def test_missing_or_empty_token_404_like_an_unknown_one(
+    client: AsyncClient, auth_headers: dict[str, str], headers: dict[str, str]
+) -> None:
+    await _share(client, (await _create_trip(client, auth_headers))["id"], auth_headers)
+
+    response = await client.get("/api/v1/shared/trip", headers=headers)
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Trip not found"}
 
 
 async def test_revoked_token_404_and_reshare_issues_new_token(
@@ -287,10 +303,10 @@ async def test_revoked_token_404_and_reshare_issues_new_token(
     response = await client.delete(f"/api/v1/trips/{trip['id']}/share", headers=auth_headers)
 
     assert response.status_code == 204
-    assert (await client.get(f"/api/v1/shared/trips/{token}")).status_code == 404
+    assert (await _fetch_shared(client, token)).status_code == 404
     new_token = await _share(client, trip["id"], auth_headers)
     assert new_token != token
-    assert (await client.get(f"/api/v1/shared/trips/{new_token}")).status_code == 200
+    assert (await _fetch_shared(client, new_token)).status_code == 200
 
 
 async def test_blocked_owners_share_link_404(
@@ -303,7 +319,7 @@ async def test_blocked_owners_share_link_404(
     session.add(user)
     await session.commit()
 
-    assert (await client.get(f"/api/v1/shared/trips/{token}")).status_code == 404
+    assert (await _fetch_shared(client, token)).status_code == 404
 
 
 @pytest.mark.parametrize("method", ["post", "delete"])
@@ -386,6 +402,15 @@ def test_shared_routes_are_read_only() -> None:
     assert {method for method, _ in shared} == {"GET"}
 
 
-def test_share_token_is_redacted_from_logged_paths() -> None:
-    assert redact_path("/api/v1/shared/trips/s3cr3t") == "/api/v1/shared/trips/<redacted>"
-    assert redact_path("/api/v1/trips/abc") == "/api/v1/trips/abc"
+def test_shared_routes_take_no_path_parameters() -> None:
+    # The token must never be in a URL, where proxy access logs would record it.
+    shared = _routes("/api/v1/shared")
+    assert shared
+    assert not [path for _, path in shared if "{" in path]
+
+
+def test_shared_trip_reads_the_token_from_a_header_in_openapi() -> None:
+    paths = app.openapi()["paths"]
+    params = paths["/api/v1/shared/trip"]["get"]["parameters"]
+    assert [(p["name"], p["in"]) for p in params] == [("X-Share-Token", "header")]
+    assert {path for path in paths if path.startswith("/api/v1/shared")} == {"/api/v1/shared/trip"}
