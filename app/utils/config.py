@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     postgres_host: str = "localhost"
     postgres_port: int = 5432
 
+    # Dev only: the password for the accounts scripts/seed.py creates. The script refuses to run without
+    # it, so never set it on a server.
+    seed_password: str | None = None
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def database_url(self) -> str:

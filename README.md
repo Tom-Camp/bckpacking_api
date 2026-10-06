@@ -96,7 +96,21 @@ docker compose up -d
 uv run alembic upgrade head
 ```
 
-### 5. Start the server
+### 5. Seed development data (optional)
+
+First set `SEED_PASSWORD` in `.env` to a password of your choice (it must pass the registration strength
+check). Every seed account uses it. Never set it on a server: the script refuses to run without it.
+
+```shell
+uv run python -m scripts.seed
+```
+
+Creates `hiker@example.com` (two trips with gear, food, checklist and a share link), `admin@example.com`,
+`metric@example.com` and `blocked@example.com`. `--password` overrides `SEED_PASSWORD` for one run.
+Re-running replaces those accounts and leaves everything else alone. It also refuses a non-local
+`POSTGRES_HOST` unless passed `--allow-remote-host`.
+
+### 6. Start the server
 
 ```shell
 uv run uvicorn app.main:app --reload
