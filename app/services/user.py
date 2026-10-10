@@ -18,7 +18,7 @@ logger = structlog.get_logger()
 
 def _maybe_bootstrap_admin(user: User) -> None:
     """Promote to admin + active if email matches ADMIN_EMAIL env var."""
-    if settings.admin_email and user.email.lower() == settings.admin_email.lower():
+    if settings.admin_email and user.email.lower() == settings.admin_email.strip().lower():
         user.status = UserStatus.ACTIVE
         user.role = UserRole.ADMIN
 
@@ -118,6 +118,7 @@ async def set_role(session: AsyncSession, user: User, role: UserRole) -> User:
 
 async def ensure_admin(session: AsyncSession, email: str) -> None:
     """Startup bootstrap: promote the admin_email user if they already exist."""
+    email = email.strip().lower()
     try:
         result = await session.execute(select(User).where(User.email == email))
         user = result.scalar_one_or_none()

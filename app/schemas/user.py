@@ -26,12 +26,22 @@ def _validate_password_strength(v: str) -> str:
     return v
 
 
+def _normalize_email(v: str) -> str:
+    # EmailStr lowercases only the domain; emails are unique and matched case-insensitively
+    return v.strip().lower()
+
+
 class UserCreate(BaseModel):
     email: EmailStr
     password: str
     username: str
     first_name: str | None = None
     last_name: str | None = None
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, v: str) -> str:
+        return _normalize_email(v)
 
     @field_validator("password")
     @classmethod
@@ -49,6 +59,11 @@ class UserCreate(BaseModel):
 class UserLogin(BaseModel):
     email: EmailStr
     password: str
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, v: str) -> str:
+        return _normalize_email(v)
 
 
 class UserUpdate(UpdateSchema):
@@ -108,6 +123,11 @@ class TokenResponse(BaseModel):
 
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, v: str) -> str:
+        return _normalize_email(v)
 
 
 class ResetPasswordRequest(BaseModel):
