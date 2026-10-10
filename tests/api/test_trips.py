@@ -1,3 +1,4 @@
+import uuid
 from typing import Any, cast
 
 import pytest
@@ -51,14 +52,16 @@ async def test_get_trip_404_for_unknown_id(client: AsyncClient, auth_headers: di
     assert response.status_code == 404
 
 
-async def test_get_trip_403_for_other_users_trip(
+async def test_get_trip_404_for_other_users_trip(
     client: AsyncClient, auth_headers: dict[str, str], other_auth_headers: dict[str, str]
 ) -> None:
     trip = await _create_trip(client, auth_headers)
 
     response = await client.get(f"/api/v1/trips/{trip['id']}", headers=other_auth_headers)
+    missing = await client.get(f"/api/v1/trips/{uuid.uuid4()}", headers=other_auth_headers)
 
-    assert response.status_code == 403
+    assert response.status_code == 404
+    assert response.json() == missing.json()
 
 
 async def test_update_trip(client: AsyncClient, auth_headers: dict[str, str]) -> None:
