@@ -38,10 +38,9 @@ async def get_owned_trip(
     session: AsyncSession = Depends(get_session),
 ) -> Trip:
     trip = await trip_service.get_trip(session, trip_id)
-    if not trip:
+    # Another user's trip is indistinguishable from a missing one, so ids can't be probed.
+    if not trip or trip.user_id != user.id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Trip not found")
-    if trip.user_id != user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your trip")
     return trip
 
 

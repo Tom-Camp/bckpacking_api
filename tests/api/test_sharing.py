@@ -331,8 +331,12 @@ async def test_non_owner_cannot_change_sharing(
     response = await client.request(
         method.upper(), f"/api/v1/trips/{trip['id']}/share", headers=other_auth_headers
     )
+    missing = await client.request(
+        method.upper(), f"/api/v1/trips/{uuid.uuid4()}/share", headers=other_auth_headers
+    )
 
-    assert response.status_code == 403
+    assert response.status_code == 404
+    assert response.json() == missing.json()
 
 
 async def test_sharing_requires_auth(client: AsyncClient, auth_headers: dict[str, str]) -> None:
@@ -377,8 +381,12 @@ async def test_authenticated_non_owner_cannot_edit_shared_trip(
     response = await client.request(
         method, f"/api/v1/trips/{trip['id']}{suffix}", json=body, headers=other_auth_headers
     )
+    missing = await client.request(
+        method, f"/api/v1/trips/{uuid.uuid4()}{suffix}", json=body, headers=other_auth_headers
+    )
 
-    assert response.status_code == 403
+    assert response.status_code == 404
+    assert response.json() == missing.json()
 
 
 def _routes(prefix: str) -> set[tuple[str, str]]:
