@@ -107,15 +107,6 @@ class UserRead(BaseModel):
     updated_at: datetime
 
 
-class UserPublic(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    username: str
-    first_name: str | None = None
-    last_name: str | None = None
-    picture: str | None = None
-
-
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"  # noqa: S105 - OAuth2 token type, not a secret
