@@ -68,6 +68,14 @@ async def get_user(session: AsyncSession, user_id: uuid.UUID) -> User | None:
     return await session.get(User, user_id)
 
 
+async def list_users(session: AsyncSession, status_filter: UserStatus | None = None) -> list[User]:
+    query = select(User).order_by(User.created_at)  # type: ignore[arg-type]
+    if status_filter is not None:
+        query = query.where(User.status == status_filter)
+    result = await session.execute(query)
+    return list(result.scalars().all())
+
+
 async def delete_user(session: AsyncSession, user: User) -> None:
     await session.delete(user)
     await session.commit()
