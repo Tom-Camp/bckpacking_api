@@ -1,5 +1,7 @@
 from httpx import AsyncClient
 
+from app.models.user import User
+
 
 async def test_update_me_sets_picture_and_body_weight(
     client: AsyncClient, auth_headers: dict[str, str]
@@ -47,3 +49,17 @@ async def test_measurements_rejects_unknown_unit_system(
     )
 
     assert response.status_code == 422
+
+
+async def test_update_me_username_must_be_free(
+    client: AsyncClient, auth_headers: dict[str, str], other_user: User
+) -> None:
+    taken = await client.patch(
+        "/api/v1/users/me", json={"username": other_user.username}, headers=auth_headers
+    )
+    free = await client.patch("/api/v1/users/me", json={"username": "trail-name"}, headers=auth_headers)
+
+    assert taken.status_code == 409
+    assert taken.json()["detail"] == "Username already taken"
+    assert free.status_code == 200
+    assert free.json()["username"] == "trail-name"
