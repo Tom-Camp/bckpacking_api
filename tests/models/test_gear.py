@@ -15,7 +15,7 @@ async def _make_user_with_trip_and_item(session: AsyncSession, email: str) -> tu
     session.add(user)
     await session.commit()
     trip = Trip(name="Test Trip", user_id=user.id)
-    item = GearItem(user_id=user.id, name="Tent", category="shelter", weight_g=1200)
+    item = GearItem(user_id=user.id, name="Tent", category=GearCategory.SHELTER, weight_g=1200)
     session.add_all([trip, item])
     await session.commit()
     return user, trip, item

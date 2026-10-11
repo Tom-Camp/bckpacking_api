@@ -170,7 +170,8 @@ def _seed_checklist_items(_target: Trip, _args: tuple[Any, ...], kwargs: dict[st
     kwargs.setdefault(
         "checklist_items",
         [
-            TripChecklistItem(
+            # trip_id is set by the relationship on flush.
+            TripChecklistItem(  # type: ignore[call-arg]
                 item=key,
                 status=shuttle_status_for(trip_type)
                 if key == ChecklistItemKey.SHUTTLE_SCHEDULED
@@ -183,4 +184,5 @@ def _seed_checklist_items(_target: Trip, _args: tuple[Any, ...], kwargs: dict[st
 
 @event.listens_for(Trip, "init")
 def _seed_food_planner(_target: Trip, _args: tuple[Any, ...], kwargs: dict[str, Any]) -> None:
-    kwargs.setdefault("food_plan", FoodPlanner())
+    # trip_id is set by the relationship on flush.
+    kwargs.setdefault("food_plan", FoodPlanner())  # type: ignore[call-arg]
