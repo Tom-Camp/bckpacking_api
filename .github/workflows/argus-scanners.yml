@@ -56,7 +56,7 @@ jobs:
           fail_on_severity: 'high'
 
       - name: Run Gitleaks (Secrets Detection)
-        uses: huntridge-labs/argus/.github/actions/scanner-gitleaks@f6fb17dc494b545f4c6479bb01d875a831414c4e # 0.4.0
+        uses: huntridge-labs/argus/.github/actions/scanner-gitleaks@309e971918f9852c4a35e34fa145b5412697829f # 1.12.7
         env:
           # Optional: For organizations, add your license
           # GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
