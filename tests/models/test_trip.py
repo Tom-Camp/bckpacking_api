@@ -1,4 +1,5 @@
 from datetime import date
+from typing import Any
 from uuid import uuid4
 
 import pytest
@@ -11,6 +12,7 @@ from sqlmodel import col
 
 from app.auth.passwords import hash_password
 from app.models import FoodPlanner, GearItem, Trip, TripChecklistItem, TripFood, TripGear, TripNote, User
+from app.models.gear import GearCategory
 from app.models.trip import ChecklistItemKey, ChecklistStatus, Meal, TripType
 
 hashed_password: str = hash_password("r1GRB3$ZB0*mbwymrJuJcdUTtdqESdf%AuD")
@@ -24,7 +26,7 @@ async def _make_user(session: AsyncSession, email: str = "hiker@example.com") ->
     return user
 
 
-async def _make_trip(session: AsyncSession, user: User, **kwargs: object) -> Trip:
+async def _make_trip(session: AsyncSession, user: User, **kwargs: Any) -> Trip:
     kwargs.setdefault("name", "Test Trip")
     kwargs.setdefault("total_distance_m", 16_000)
     trip = Trip(user_id=user.id, **kwargs)
@@ -93,8 +95,8 @@ async def test_checklist_items_are_unique_per_trip_and_item(session: AsyncSessio
 async def test_trip_gear_list_loads_closet_items(session: AsyncSession) -> None:
     user = await _make_user(session, "gearlist@example.com")
     trip = await _make_trip(session, user)
-    tent = GearItem(user_id=user.id, name="Tent", category="shelter", weight_g=1200)
-    stove = GearItem(user_id=user.id, name="Stove", category="cooking_water", weight_g=500)
+    tent = GearItem(user_id=user.id, name="Tent", category=GearCategory.SHELTER, weight_g=1200)
+    stove = GearItem(user_id=user.id, name="Stove", category=GearCategory.COOKING_WATER, weight_g=500)
     session.add_all([tent, stove])
     await session.commit()
 
@@ -191,7 +193,7 @@ async def test_deleting_trip_cascades_to_gear_food_planner_checklist_items_and_n
 ) -> None:
     user = await _make_user(session, "cascade@example.com")
     trip = await _make_trip(session, user)
-    tent = GearItem(user_id=user.id, name="Tent", category="shelter", weight_g=1000)
+    tent = GearItem(user_id=user.id, name="Tent", category=GearCategory.SHELTER, weight_g=1000)
     session.add(tent)
     await session.commit()
 
