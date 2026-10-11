@@ -43,14 +43,14 @@ jobs:
           persist-credentials: false
 
       - name: Run Bandit (Python)
-        uses: huntridge-labs/argus/.github/actions/scanner-bandit@3fb133a5d03ec81a7a534cf451dd19991e04a975 # 1.12.6
+        uses: huntridge-labs/argus/.github/actions/scanner-bandit@309e971918f9852c4a35e34fa145b5412697829f # 1.12.7
         with:
           post_pr_comment: 'true'
           enable_code_security: 'true'
           fail_on_severity: 'high'
 
       - name: Run OpenGrep
-        uses: huntridge-labs/argus/.github/actions/scanner-opengrep@3fb133a5d03ec81a7a534cf451dd19991e04a975 # 1.12.6
+        uses: huntridge-labs/argus/.github/actions/scanner-opengrep@309e971918f9852c4a35e34fa145b5412697829f # 1.12.7
         with:
           enable_code_security: 'true'
           fail_on_severity: 'high'
@@ -83,7 +83,7 @@ jobs:
           persist-credentials: false
 
       - name: Generate SBOM
-        uses: huntridge-labs/argus/.github/actions/scanner-syft@3fb133a5d03ec81a7a534cf451dd19991e04a975 # 1.12.6
+        uses: huntridge-labs/argus/.github/actions/scanner-syft@309e971918f9852c4a35e34fa145b5412697829f # 1.12.7
         with:
           scan_path: '.'
           output_format: 'cyclonedx-json'
@@ -119,7 +119,7 @@ jobs:
         continue-on-error: true
 
       - name: Generate combined summary
-        uses: huntridge-labs/argus/.github/actions/security-summary@3fb133a5d03ec81a7a534cf451dd19991e04a975 # 1.12.6
+        uses: huntridge-labs/argus/.github/actions/security-summary@309e971918f9852c4a35e34fa145b5412697829f # 1.12.7
         with:
           post_pr_comment: 'true'
         continue-on-error: true
