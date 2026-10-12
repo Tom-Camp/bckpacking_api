@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 
 import structlog
 from fastapi import HTTPException, status
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
@@ -28,9 +29,11 @@ async def create_user(
     user: UserCreate,
     initial_status: UserStatus = UserStatus.ACTIVE,
 ) -> User:
+    # bcrypt is deliberately slow and CPU-bound; run it in a worker thread so it doesn't stall
+    # every other request on the event loop.
     db_user = User(
         email=user.email,
-        password_hash=hash_password(user.password),
+        password_hash=await run_in_threadpool(hash_password, user.password),
         username=user.username,
         first_name=user.first_name,
         last_name=user.last_name,
@@ -48,7 +51,7 @@ async def authenticate(session: AsyncSession, user_data: UserLogin) -> User | No
     user = result.scalar_one_or_none()
     if not user or not user.password_hash:
         return None
-    if not verify_password(user_data.password, user.password_hash):
+    if not await run_in_threadpool(verify_password, user_data.password, user.password_hash):
         return None
     return user
 
