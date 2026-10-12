@@ -1,6 +1,10 @@
-from typing import Any, ClassVar
+from typing import Annotated, Any, ClassVar
 
-from pydantic import BaseModel, ConfigDict, ValidationInfo, field_validator
+from pydantic import BaseModel, ConfigDict, StringConstraints, ValidationInfo, field_validator
+
+# A required text field: surrounding whitespace is stripped (as ModelBase does on write) and the
+# result must not be empty, so "   " is a 422 rather than a stored "".
+NonBlankStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
 
 def _drop_null_from_non_nullable(schema: dict[str, Any], model_cls: type[BaseModel]) -> None:

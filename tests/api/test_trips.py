@@ -477,3 +477,64 @@ async def test_map_link_can_be_cleared(
     )
 
     assert (response.status_code, response.json()["map_link"]) == (200, None)
+
+
+# (create path, valid create body, field that must not be blank). Each resource's PATCH url is
+# its create path plus the new id.
+REQUIRED_TEXT_FIELDS = [
+    pytest.param("/api/v1/trips", TRIP_PAYLOAD, "name", id="trip"),
+    pytest.param("/api/v1/gear", {"name": "Tent"}, "name", id="gear-item"),
+    pytest.param("{trip}/notes", {"content": "Bring extra socks."}, "content", id="note"),
+    pytest.param(
+        "{trip}/food-plan/items",
+        {"day": 1, "name": "Oatmeal", "weight_g": 100, "kcal": 400},
+        "name",
+        id="food",
+    ),
+]
+
+
+async def _create_path(client: AsyncClient, headers: dict[str, str], path: str) -> str:
+    if "{trip}" not in path:
+        return path
+    trip = await _create_trip(client, headers)
+    return path.format(trip=f"/api/v1/trips/{trip['id']}")
+
+
+@pytest.mark.parametrize("blank", ["", "   "])
+@pytest.mark.parametrize(("path", "body", "field"), REQUIRED_TEXT_FIELDS)
+async def test_required_text_fields_reject_blank_values(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    path: str,
+    body: dict[str, Any],
+    field: str,
+    blank: str,
+) -> None:
+    path = await _create_path(client, auth_headers, path)
+    created = await client.post(path, json=body, headers=auth_headers)
+    url = f"{path}/{created.json()['id']}"
+
+    rejected_create = await client.post(path, json=body | {field: blank}, headers=auth_headers)
+    rejected_update = await client.patch(url, json={field: blank}, headers=auth_headers)
+
+    for response in (rejected_create, rejected_update):
+        assert response.status_code == 422
+        assert response.json()["detail"][0]["loc"] == ["body", field]
+    after = await client.patch(url, json={}, headers=auth_headers)
+    assert after.json()[field] == body[field]
+
+
+@pytest.mark.parametrize(("path", "body", "field"), REQUIRED_TEXT_FIELDS)
+async def test_required_text_fields_are_stored_stripped(
+    client: AsyncClient, auth_headers: dict[str, str], path: str, body: dict[str, Any], field: str
+) -> None:
+    path = await _create_path(client, auth_headers, path)
+
+    created = await client.post(path, json=body | {field: "  First  "}, headers=auth_headers)
+    updated = await client.patch(
+        f"{path}/{created.json()['id']}", json={field: "\tSecond\n"}, headers=auth_headers
+    )
+
+    assert (created.status_code, created.json()[field]) == (201, "First")
+    assert (updated.status_code, updated.json()[field]) == (200, "Second")
