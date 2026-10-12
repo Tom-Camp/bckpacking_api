@@ -4,7 +4,7 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field, computed_field, field_validator
 
 from app.models.gear import GearCategory, GearKind
-from app.schemas.base import UpdateSchema
+from app.schemas.base import NonBlankStr, UpdateSchema
 
 
 def _lowercase(v: object) -> object:
@@ -13,7 +13,7 @@ def _lowercase(v: object) -> object:
 
 
 class GearItemCreate(BaseModel):
-    name: str
+    name: NonBlankStr
     category: GearCategory = GearCategory.MISCELLANEOUS
     weight_g: float = Field(default=0.0, ge=0)
     kind: GearKind = GearKind.BASE
@@ -28,7 +28,7 @@ class GearItemCreate(BaseModel):
 class GearItemUpdate(UpdateSchema):
     non_nullable = frozenset({"name", "category", "weight_g", "kind"})
 
-    name: str | None = None
+    name: NonBlankStr | None = None
     category: GearCategory | None = None
     weight_g: float | None = Field(default=None, ge=0)
     kind: GearKind | None = None

@@ -39,9 +39,25 @@ def test_non_nullable_matches_model_columns(schema: type[UpdateSchema], model: t
 def test_non_nullable_fields_are_not_nullable_in_json_schema() -> None:
     properties = TripUpdate.model_json_schema()["properties"]
 
-    assert properties["name"] == {"type": "string", "title": "Name"}
+    assert properties["name"] == {"type": "string", "minLength": 1, "title": "Name"}
     assert properties["trip_type"] == {"$ref": "#/$defs/TripType"}
     assert {"type": "null"} in properties["end_trailhead"]["anyOf"]
+
+
+@pytest.mark.parametrize(
+    ("schema", "field"),
+    [
+        (TripUpdate, "name"),
+        (GearItemUpdate, "name"),
+        (TripNoteUpdate, "content"),
+        (TripFoodUpdate, "name"),
+    ],
+    ids=lambda x: getattr(x, "__name__", x),
+)
+def test_non_blank_fields_advertise_min_length_without_null(schema: type[UpdateSchema], field: str) -> None:
+    prop = schema.model_json_schema()["properties"][field]
+
+    assert prop == {"type": "string", "minLength": 1, "title": field.capitalize()}
 
 
 def test_non_nullable_rejects_unknown_field_names() -> None:

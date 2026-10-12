@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, computed_fiel
 
 from app.models.gear import GearCategory, GearKind
 from app.models.trip import ChecklistItemKey, ChecklistStatus, Meal, Trip, TripType
-from app.schemas.base import UpdateSchema
+from app.schemas.base import NonBlankStr, UpdateSchema
 from app.schemas.gear import GearItemRead
 
 
@@ -33,7 +33,7 @@ def check_map_link(v: str | None) -> str | None:
 
 
 class TripCreate(BaseModel):
-    name: str
+    name: NonBlankStr
     description: str | None = None
     area: str | None = None
     trip_type: TripType = TripType.LOOP
@@ -72,7 +72,7 @@ class TripUpdate(UpdateSchema):
         }
     )
 
-    name: str | None = None
+    name: NonBlankStr | None = None
     description: str | None = None
     area: str | None = None
     trip_type: TripType | None = None
@@ -122,13 +122,13 @@ class TripGearRead(BaseModel):
 
 
 class TripNoteCreate(BaseModel):
-    content: str
+    content: NonBlankStr
 
 
 class TripNoteUpdate(UpdateSchema):
     non_nullable = frozenset({"content"})
 
-    content: str | None = None
+    content: NonBlankStr | None = None
 
 
 class TripNoteRead(BaseModel):
@@ -162,7 +162,7 @@ class ChecklistItemRead(BaseModel):
 
 class TripFoodCreate(BaseModel):
     day: int = Field(ge=1)
-    name: str
+    name: NonBlankStr
     meal_type: Meal = Meal.BREAKFAST
     servings: float = Field(default=1, gt=0)
     weight_g: float = Field(ge=0)
@@ -173,7 +173,7 @@ class TripFoodUpdate(UpdateSchema):
     non_nullable = frozenset({"day", "name", "meal_type", "servings", "weight_g", "kcal"})
 
     day: int | None = Field(default=None, ge=1)
-    name: str | None = None
+    name: NonBlankStr | None = None
     meal_type: Meal | None = None
     servings: float | None = Field(default=None, gt=0)
     weight_g: float | None = Field(default=None, ge=0)
