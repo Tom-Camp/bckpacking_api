@@ -415,3 +415,65 @@ async def test_checklist_rejects_unknown_status_and_old_permit_key(
 
     assert (bad_status.status_code, old_key.status_code) == (422, 422)
     assert (permit.status_code, permit.json()["status"]) == (200, "not_applicable")
+
+
+@pytest.mark.parametrize("link", ["https://caltopo.com/m/ABC", "http://example.com/map?x=1"])
+async def test_map_link_accepts_http_urls(
+    client: AsyncClient, auth_headers: dict[str, str], link: str
+) -> None:
+    trip = await _create_trip(client, auth_headers, map_link=f"  {link}  ")
+
+    response = await client.patch(
+        f"/api/v1/trips/{trip['id']}", json={"map_link": link}, headers=auth_headers
+    )
+
+    assert trip["map_link"] == link
+    assert (response.status_code, response.json()["map_link"]) == (200, link)
+
+
+@pytest.mark.parametrize(
+    "link",
+    [
+        "javascript:alert(1)",
+        "JaVaScRiPt:alert(1)",
+        " javascript:alert(1)",
+        "data:text/html,<script>alert(1)</script>",
+        "//evil.test",
+        "ftp://example.com/map",
+        "https://",
+        "caltopo.com/m/ABC",
+        "http://[::1",
+    ],
+)
+async def test_map_link_rejects_non_http_urls(
+    client: AsyncClient, auth_headers: dict[str, str], link: str
+) -> None:
+    trip = await _create_trip(client, auth_headers, map_link="https://caltopo.com/m/ABC")
+
+    created = await client.post(
+        "/api/v1/trips", json=TRIP_PAYLOAD | {"map_link": link}, headers=auth_headers
+    )
+    updated = await client.patch(
+        f"/api/v1/trips/{trip['id']}", json={"map_link": link}, headers=auth_headers
+    )
+
+    for response in (created, updated):
+        assert response.status_code == 422
+        error = response.json()["detail"][0]
+        assert error["loc"] == ["body", "map_link"]
+        assert "Map link must start with http:// or https://" in error["msg"]
+    after = (await client.get(f"/api/v1/trips/{trip['id']}", headers=auth_headers)).json()
+    assert after["map_link"] == "https://caltopo.com/m/ABC"
+
+
+@pytest.mark.parametrize("cleared", [None, "", "   "])
+async def test_map_link_can_be_cleared(
+    client: AsyncClient, auth_headers: dict[str, str], cleared: str | None
+) -> None:
+    trip = await _create_trip(client, auth_headers, map_link="https://caltopo.com/m/ABC")
+
+    response = await client.patch(
+        f"/api/v1/trips/{trip['id']}", json={"map_link": cleared}, headers=auth_headers
+    )
+
+    assert (response.status_code, response.json()["map_link"]) == (200, None)

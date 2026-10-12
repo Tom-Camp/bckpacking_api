@@ -1,6 +1,7 @@
 import uuid
 from collections.abc import Sequence
 from datetime import date, datetime
+from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, computed_field, field_validator
 
@@ -13,6 +14,22 @@ from app.schemas.gear import GearItemRead
 def check_date_order(start_date: date | None, end_date: date | None) -> None:
     if start_date is not None and end_date is not None and end_date < start_date:
         raise ValueError("end_date must be on or after start_date")
+
+
+def check_map_link(v: str | None) -> str | None:
+    """Blank becomes None; anything else must be an absolute http(s) URL, since the UI renders it as a link."""
+    if v is None:
+        return None
+    v = v.strip()
+    if not v:
+        return None
+    try:
+        parts = urlsplit(v)
+    except ValueError:
+        parts = None
+    if parts is None or parts.scheme not in {"http", "https"} or not parts.hostname:
+        raise ValueError("Map link must start with http:// or https://")
+    return v
 
 
 class TripCreate(BaseModel):
@@ -35,6 +52,11 @@ class TripCreate(BaseModel):
     def end_date_not_before_start_date(cls, v: date | None, info: ValidationInfo) -> date | None:
         check_date_order(info.data.get("start_date"), v)
         return v
+
+    @field_validator("map_link")
+    @classmethod
+    def map_link_is_http_url(cls, v: str | None) -> str | None:
+        return check_map_link(v)
 
 
 class TripUpdate(UpdateSchema):
@@ -67,6 +89,11 @@ class TripUpdate(UpdateSchema):
     share_food: bool | None = None
     share_checklist: bool | None = None
     share_emergency_contact: bool | None = None
+
+    @field_validator("map_link")
+    @classmethod
+    def map_link_is_http_url(cls, v: str | None) -> str | None:
+        return check_map_link(v)
 
 
 class TripGearCreate(BaseModel):
