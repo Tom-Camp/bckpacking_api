@@ -41,3 +41,18 @@ async def test_bcrypt_runs_off_the_event_loop_thread(
     assert bad is None
     assert len(threads) == 3
     assert loop_thread not in threads
+
+
+async def test_zxcvbn_runs_off_the_event_loop_thread(
+    session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # zxcvbn can take ~400 ms on a long password, longer than a bcrypt hash.
+    threads: list[threading.Thread] = []
+    monkeypatch.setattr(passwords, "zxcvbn", _record_thread(passwords.zxcvbn, threads))
+
+    await user_service.create_user(
+        session, UserCreate(email="hiker@example.com", password=_PASSWORD, username="hiker")
+    )
+
+    assert len(threads) == 1
+    assert threading.current_thread() not in threads

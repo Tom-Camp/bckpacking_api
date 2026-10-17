@@ -131,7 +131,31 @@ async def test_register_rejects_weak_password(client: AsyncClient) -> None:
         json={"email": "weak@example.com", "password": "password1", "username": "weak"},
     )
 
+    # The UI shows this body, so it must stay exactly what a pydantic field validator produces.
     assert response.status_code == 422
+    assert response.content == (
+        b'{"detail":[{"type":"value_error","loc":["body","password"],'
+        b'"msg":"Value error, This is a very common password.","input":"password1","ctx":{"error":{}}}]}'
+    )
+
+
+async def test_register_rejects_password_over_72_bytes_without_zxcvbn(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(user_service, "check_password_strength", _never_called)
+
+    response = await client.post(
+        "/api/v1/auth/register",
+        json={"email": "long@example.com", "password": _PASSWORD * 3, "username": "long"},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["loc"] == ["body", "password"]
+    assert response.json()["detail"][0]["msg"] == "Value error, Password must be at most 72 bytes"
+
+
+def _never_called(*_args: object) -> None:
+    raise AssertionError("zxcvbn must not run")
 
 
 async def test_wrong_password_and_unknown_email_get_the_same_401(client: AsyncClient, user: User) -> None:

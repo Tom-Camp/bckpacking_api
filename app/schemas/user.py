@@ -3,26 +3,19 @@ import uuid
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
-from zxcvbn import zxcvbn
 
 from app.models.user import Unit, UserRole, UserStatus
 from app.schemas.base import UpdateSchema
 
 _USERNAME_RE = re.compile(r"^[a-zA-Z0-9_-]{3,30}$")
 
-_MIN_ZXCVBN_SCORE = 3
 _MAX_PASSWORD_BYTES = 72  # bcrypt truncates/rejects beyond this
 
 
-def _validate_password_strength(v: str) -> str:
+def _validate_password_length(v: str) -> str:
+    # The zxcvbn strength check is too slow for the event loop, so it runs in services/user.create_user.
     if len(v.encode()) > _MAX_PASSWORD_BYTES:
         raise ValueError(f"Password must be at most {_MAX_PASSWORD_BYTES} bytes")
-    result = zxcvbn(v)
-    if result["score"] < _MIN_ZXCVBN_SCORE:
-        warning = result["feedback"].get("warning")
-        suggestions = result["feedback"].get("suggestions", [])
-        message = warning or (suggestions[0] if suggestions else "Password is too weak")
-        raise ValueError(message)
     return v
 
 
@@ -46,7 +39,7 @@ class UserCreate(BaseModel):
     @field_validator("password")
     @classmethod
     def validate_password(cls, v: str) -> str:
-        return _validate_password_strength(v)
+        return _validate_password_length(v)
 
     @field_validator("username")
     @classmethod
@@ -122,10 +115,12 @@ class ForgotPasswordRequest(BaseModel):
 
 
 class ResetPasswordRequest(BaseModel):
+    # Only the length is checked here. The service that applies a reset must also reject weak passwords
+    # (see services/user._reject_weak_password), off the event loop.
     token: str
     password: str
 
     @field_validator("password")
     @classmethod
     def validate_password(cls, v: str) -> str:
-        return _validate_password_strength(v)
+        return _validate_password_length(v)

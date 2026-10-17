@@ -4,11 +4,12 @@ from datetime import UTC, datetime
 import structlog
 from fastapi import HTTPException, status
 from fastapi.concurrency import run_in_threadpool
+from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
-from app.auth.passwords import hash_password, verify_password
+from app.auth.passwords import check_password_strength, hash_password, verify_password
 from app.models.user import User, UserRole, UserStatus
 from app.schemas.user import UserCreate, UserLogin, UserUpdate
 from app.services.base import save_updates
@@ -24,11 +25,30 @@ def _maybe_bootstrap_admin(user: User) -> None:
         user.role = UserRole.ADMIN
 
 
+async def _reject_weak_password(password: str) -> None:
+    # Raised as the same 422 a field validator on UserCreate.password would produce, so clients see no
+    # difference; it runs here rather than in the schema because zxcvbn is too slow for the event loop.
+    weakness = await run_in_threadpool(check_password_strength, password)
+    if weakness:
+        raise RequestValidationError(
+            [
+                {
+                    "type": "value_error",
+                    "loc": ("body", "password"),
+                    "msg": f"Value error, {weakness}",
+                    "input": password,
+                    "ctx": {"error": ValueError(weakness)},
+                }
+            ]
+        )
+
+
 async def create_user(
     session: AsyncSession,
     user: UserCreate,
     initial_status: UserStatus = UserStatus.ACTIVE,
 ) -> User:
+    await _reject_weak_password(user.password)
     # bcrypt is deliberately slow and CPU-bound; run it in a worker thread so it doesn't stall
     # every other request on the event loop.
     db_user = User(

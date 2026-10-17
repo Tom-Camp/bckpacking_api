@@ -12,7 +12,7 @@ from app.models.user import Unit, User, UserRole, UserStatus
 from app.schemas.trip import SharedTripRead, TripRead
 from app.services import trip as trip_service
 from app.utils.config import settings
-from scripts.seed import seed
+from scripts.seed import WeakSeedPasswordError, seed
 from scripts.seed_data import (
     CARVERS_GAP,
     HIKER_CLOSET,
@@ -135,12 +135,19 @@ async def test_seed_is_rerunnable_and_leaves_other_users_alone(session: AsyncSes
     assert await trip_service.get_shared_trip(session, old_token) is None
 
 
-async def test_seed_rejects_a_weak_password_before_touching_existing_accounts(session: AsyncSession) -> None:
+@pytest.mark.parametrize(
+    ("password", "error"),
+    [("password", WeakSeedPasswordError), ("x" * 73, ValidationError)],
+    ids=["weak", "over-72-bytes"],
+)
+async def test_seed_rejects_a_bad_password_before_touching_existing_accounts(
+    session: AsyncSession, password: str, error: type[Exception]
+) -> None:
     await seed(session, PASSWORD)
     counts = [await _count(session, model) for model in (User, Trip, GearItem)]
 
-    with pytest.raises(ValidationError):
-        await seed(session, "password")
+    with pytest.raises(error):
+        await seed(session, password)
 
     assert [await _count(session, model) for model in (User, Trip, GearItem)] == counts
 
