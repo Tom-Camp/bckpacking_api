@@ -19,6 +19,7 @@ from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlmodel import col, select
 
+from app.auth.passwords import check_password_strength
 from app.models.gear import GearItem
 from app.models.trip import Trip
 from app.models.user import User, UserRole, UserStatus
@@ -60,6 +61,10 @@ LOCAL_HOSTS = frozenset({"localhost", "127.0.0.1", "::1", "db"})
 class SeedResult:
     users: dict[str, User]
     share_tokens: dict[str, str]
+
+
+class WeakSeedPasswordError(ValueError):
+    pass
 
 
 def _user_create(seed: SeedUser, password: str) -> UserCreate:
@@ -162,7 +167,12 @@ async def _create_trip(
 
 async def seed(session: AsyncSession, password: str) -> SeedResult:
     # Validate every account (including the password's strength) before deleting the old ones.
+    # create_user checks strength too, but only after the old accounts are gone. UserCreate's length
+    # check comes first: zxcvbn raises on anything over 72 characters.
     payloads = {seed_user.username: _user_create(seed_user, password) for seed_user in USERS}
+    weakness = check_password_strength(password)
+    if weakness:
+        raise WeakSeedPasswordError(weakness)
     existing = await session.execute(select(User).where(col(User.email).in_([u.email for u in USERS])))
     for user in existing.scalars().all():
         await user_service.delete_user(session, user)
@@ -195,6 +205,8 @@ async def _main(password: str, allow_remote: bool) -> None:
             result = await seed(session, password)
     except ValidationError as exc:
         sys.exit(f"The seed password was rejected: {exc.errors()[0]['msg']}")
+    except WeakSeedPasswordError as exc:
+        sys.exit(f"The seed password was rejected: {exc}")
     finally:
         await engine.dispose()
 
