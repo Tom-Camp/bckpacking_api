@@ -11,7 +11,7 @@ from sqlmodel import select
 
 from app.auth.passwords import check_password_strength, hash_password, verify_password
 from app.models.user import User, UserRole, UserStatus
-from app.schemas.user import UserCreate, UserLogin, UserUpdate
+from app.schemas.user import ChangePasswordRequest, UserCreate, UserLogin, UserUpdate
 from app.services.base import save_updates
 from app.utils.config import settings
 
@@ -25,8 +25,8 @@ def _maybe_bootstrap_admin(user: User) -> None:
         user.role = UserRole.ADMIN
 
 
-async def _reject_weak_password(password: str) -> None:
-    # Raised as the same 422 a field validator on UserCreate.password would produce, so clients see no
+async def _reject_weak_password(password: str, field: str = "password") -> None:
+    # Raised as the same 422 a field validator on the schema's `field` would produce, so clients see no
     # difference; it runs here rather than in the schema because zxcvbn is too slow for the event loop.
     weakness = await run_in_threadpool(check_password_strength, password)
     if weakness:
@@ -34,7 +34,7 @@ async def _reject_weak_password(password: str) -> None:
             [
                 {
                     "type": "value_error",
-                    "loc": ("body", "password"),
+                    "loc": ("body", field),
                     "msg": f"Value error, {weakness}",
                     "input": password,
                     "ctx": {"error": ValueError(weakness)},
@@ -115,6 +115,18 @@ async def update_user(session: AsyncSession, user: User, data: UserUpdate) -> Us
         if existing:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Username already taken")
     return await save_updates(session, user, data)
+
+
+async def change_password(session: AsyncSession, user: User, data: ChangePasswordRequest) -> None:
+    # 400 rather than 401: the UI treats any 401 as an expired session and prompts a re-login.
+    if not user.password_hash or not await run_in_threadpool(
+        verify_password, data.current_password, user.password_hash
+    ):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
+    await _reject_weak_password(data.new_password, field="new_password")
+    user.password_hash = await run_in_threadpool(hash_password, data.new_password)
+    session.add(user)
+    await session.commit()
 
 
 async def approve_user(session: AsyncSession, user: User) -> User:

@@ -114,6 +114,17 @@ class ForgotPasswordRequest(BaseModel):
         return _normalize_email(v)
 
 
+class ChangePasswordRequest(BaseModel):
+    # Only the length is checked here; services/user.change_password rejects weak passwords off the event loop.
+    current_password: str
+    new_password: str
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password(cls, v: str) -> str:
+        return _validate_password_length(v)
+
+
 class ResetPasswordRequest(BaseModel):
     # Only the length is checked here. The service that applies a reset must also reject weak passwords
     # (see services/user._reject_weak_password), off the event loop.
