@@ -6,7 +6,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import passwords
-from app.schemas.user import UserCreate, UserLogin
+from app.schemas.user import ChangePasswordRequest, UserCreate, UserLogin
 from app.services import user as user_service
 
 _PASSWORD = "r1GRB3$ZB0*mbwymrJuJcdUTtdqESdf%AuD"  # nosec B105
@@ -55,4 +55,23 @@ async def test_zxcvbn_runs_off_the_event_loop_thread(
     )
 
     assert len(threads) == 1
+    assert threading.current_thread() not in threads
+
+
+async def test_change_password_runs_zxcvbn_and_bcrypt_off_the_event_loop_thread(
+    session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    user = await user_service.create_user(
+        session, UserCreate(email="hiker@example.com", password=_PASSWORD, username="hiker")
+    )
+    threads: list[threading.Thread] = []
+    monkeypatch.setattr(passwords, "zxcvbn", _record_thread(passwords.zxcvbn, threads))
+    monkeypatch.setattr(user_service, "hash_password", _record_thread(passwords.hash_password, threads))
+    monkeypatch.setattr(user_service, "verify_password", _record_thread(passwords.verify_password, threads))
+
+    await user_service.change_password(
+        session, user, ChangePasswordRequest(current_password=_PASSWORD, new_password=_PASSWORD[::-1])
+    )
+
+    assert len(threads) == 3
     assert threading.current_thread() not in threads

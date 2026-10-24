@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user, require_active_user
 from app.db import get_session
 from app.models.user import User
-from app.schemas.user import UserRead, UserUpdate
+from app.schemas.user import ChangePasswordRequest, UserRead, UserUpdate
 from app.services import user as user_service
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -23,3 +23,12 @@ async def update_me(
 ) -> UserRead:
     user = await user_service.update_user(session, user, data)
     return UserRead.model_validate(user)
+
+
+@router.post("/me/password", status_code=status.HTTP_204_NO_CONTENT)
+async def change_my_password(
+    data: ChangePasswordRequest,
+    user: User = Depends(require_active_user),
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    await user_service.change_password(session, user, data)
