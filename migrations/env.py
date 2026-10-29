@@ -1,5 +1,6 @@
 import asyncio
-from logging.config import fileConfig
+import logging
+import sys
 
 from alembic import context
 from sqlalchemy import pool
@@ -9,17 +10,19 @@ from sqlmodel import SQLModel
 
 import app.models  # noqa: F401  registers all table models on SQLModel.metadata
 from app.utils.config import settings
+from app.utils.logging import configure_logging
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
 
-# Interpret the config file for Python logging.
-# This line sets up loggers basically.
-if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+# Log like the app (JSON in the container), but to stderr as alembic.ini did, so `--sql` output on stdout stays
+# clean. alembic's own logger stays at INFO whatever LOG_LEVEL is, so startup logs show which migrations ran.
+configure_logging(log_level=settings.log_level, json_logs=settings.json_logs, stream=sys.stderr)
+logging.getLogger("alembic").setLevel(logging.INFO)
 
-config.set_main_option("sqlalchemy.url", settings.database_url)
+# set_main_option interpolates "%", so escape it or a password containing one raises ValueError.
+config.set_main_option("sqlalchemy.url", settings.database_url.replace("%", "%%"))
 
 target_metadata = SQLModel.metadata
 
