@@ -91,3 +91,42 @@ def test_exceptions_include_the_traceback() -> None:
         assert "exc_info" not in line
         assert line["exception"].startswith("Traceback (most recent call last):")
         assert "ZeroDivisionError: division by zero" in line["exception"]
+
+
+@pytest.mark.parametrize(
+    ("log_level", "expected"), [("WARNING", ["shutting down"]), ("INFO", ["started", "shutting down"])]
+)
+def test_log_level_filters_uvicorn_records(log_level: str, expected: list[str]) -> None:
+    # uvicorn sets its loggers to its own --log-level, INFO by default, before it imports the app
+    logging.getLogger("uvicorn.error").setLevel(logging.INFO)
+    out = io.StringIO()
+
+    configure_logging(log_level=log_level, json_logs=True, stream=out)
+    logging.getLogger("uvicorn.error").info("started")
+    logging.getLogger("uvicorn.error").warning("shutting down")
+
+    assert [line["event"] for line in _json_lines(out)] == expected
+
+
+def test_quiet_loggers_respect_a_stricter_log_level() -> None:
+    configure_logging(log_level="ERROR")
+
+    assert logging.getLogger("uvicorn.access").level == logging.ERROR
+    assert logging.getLogger("sqlalchemy.engine").level == logging.ERROR
+
+
+def test_a_logger_raised_after_configure_still_logs() -> None:
+    # migrations/env.py keeps alembic at INFO whatever LOG_LEVEL is, so startup logs show which migrations ran
+    alembic = logging.getLogger("alembic")
+    alembic_level = alembic.level
+    out = io.StringIO()
+
+    configure_logging(log_level="WARNING", json_logs=True, stream=out)
+    alembic.setLevel(logging.INFO)
+    try:
+        logging.getLogger("alembic.runtime.migration").info("Running upgrade")
+    finally:
+        alembic.setLevel(alembic_level)
+
+    [line] = _json_lines(out)
+    assert line["event"] == "Running upgrade"

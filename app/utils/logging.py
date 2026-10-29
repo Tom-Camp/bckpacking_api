@@ -37,14 +37,18 @@ def configure_logging(
     root_logger.handlers = [handler]
     root_logger.setLevel(level)
 
-    # uvicorn gives its loggers their own plain-text handlers; send them through the root handler instead
+    # uvicorn gives its loggers their own plain-text handlers; send them through the root handler instead.
+    # A propagated record is checked only against its own logger's level, so uvicorn's --log-level (INFO by
+    # default) would let INFO lines past a stricter LOG_LEVEL: give its loggers LOG_LEVEL too. This is per
+    # logger rather than on the handler so a caller can still raise one logger (alembic, in migrations/env.py).
     for name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
         logging.getLogger(name).handlers = []
         logging.getLogger(name).propagate = True
+        logging.getLogger(name).setLevel(level)
 
-    # Quiet noisy loggers
+    # Quiet noisy loggers, but never below LOG_LEVEL
     for name in ("uvicorn.access", "sqlalchemy.engine"):
-        logging.getLogger(name).setLevel(logging.WARNING)
+        logging.getLogger(name).setLevel(max(level, logging.WARNING))
 
     structlog.configure(
         processors=[*shared_processors, structlog.stdlib.ProcessorFormatter.wrap_for_formatter],
