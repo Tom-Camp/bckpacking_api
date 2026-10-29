@@ -128,12 +128,15 @@ To build and run it locally against the compose Postgres:
 ```shell
 docker compose up -d
 docker build -t bckpacking-api:dev .
-docker run --rm --network host --env-file .env -e UVICORN_HOST=127.0.0.1 bckpacking-api:dev
+docker run --rm --network host --env-file .env bckpacking-api:dev
 ```
 
 The container runs `alembic upgrade head`, then serves on `UVICORN_HOST:UVICORN_PORT` (default
-`0.0.0.0:5300`), so [http://127.0.0.1:5300/docs](http://127.0.0.1:5300/docs). Set either variable
-in the env file to change the bind address. `.env` is never copied into the image (see `.dockerignore`).
+`127.0.0.1:5300`), so [http://127.0.0.1:5300/docs](http://127.0.0.1:5300/docs). Set either variable
+in the env file to change it; a `-e` flag on `docker run` overrides the env file. To publish the port
+with `-p` instead of `--network host`, set `UVICORN_HOST=0.0.0.0`. Values in the env file must not be
+quoted, since `--env-file` passes quotes through literally. Only `app/`, `migrations/` and the files
+needed to install them are copied into the image (see `.dockerignore`), so `.env` never is.
 
 ---
 

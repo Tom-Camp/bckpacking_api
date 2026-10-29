@@ -1,5 +1,4 @@
 import asyncio
-from logging.config import fileConfig
 
 from alembic import context
 from sqlalchemy import pool
@@ -9,15 +8,15 @@ from sqlmodel import SQLModel
 
 import app.models  # noqa: F401  registers all table models on SQLModel.metadata
 from app.utils.config import settings
+from app.utils.logging import configure_logging
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
 
-# Interpret the config file for Python logging.
-# This line sets up loggers basically.
-if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+# Log like the app (JSON in the container). Not in offline (--sql) mode, where the SQL goes to stdout too.
+if not context.is_offline_mode():
+    configure_logging(log_level=settings.log_level, json_logs=settings.json_logs)
 
 config.set_main_option("sqlalchemy.url", settings.database_url)
 

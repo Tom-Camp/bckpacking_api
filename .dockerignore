@@ -1,16 +1,11 @@
-.git
-.github
-.venv
-.env
-.env.*
-!.env.example
-tests/
-scripts/
-__pycache__
-*.py[co]
-.pytest_cache
-.ruff_cache
-.mypy_cache
-.coverage
-htmlcov/
-docker-compose.yml
+# Allowlist: only what the image needs reaches the build context, so untracked local files
+# (.env, CLAUDE.md, .claude/, IDE folders) never do
+*
+!app/
+!migrations/
+!alembic.ini
+!entrypoint.sh
+!pyproject.toml
+!uv.lock
+**/__pycache__
+**/*.py[co]

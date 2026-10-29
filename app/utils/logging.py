@@ -49,6 +49,11 @@ def configure_logging(log_level: str = "INFO", json_logs: bool = False) -> None:
     root_logger.handlers = [handler]
     root_logger.setLevel(level)
 
+    # uvicorn gives its loggers their own plain-text handlers; send them through the root handler instead
+    for name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
+        logging.getLogger(name).handlers = []
+        logging.getLogger(name).propagate = True
+
     # Quiet noisy loggers
     for name in ("uvicorn.access", "sqlalchemy.engine"):
         logging.getLogger(name).setLevel(logging.WARNING)
