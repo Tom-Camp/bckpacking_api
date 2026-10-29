@@ -21,7 +21,8 @@ config = context.config
 configure_logging(log_level=settings.log_level, json_logs=settings.json_logs, stream=sys.stderr)
 logging.getLogger("alembic").setLevel(logging.INFO)
 
-config.set_main_option("sqlalchemy.url", settings.database_url)
+# set_main_option interpolates "%", so escape it or a password containing one raises ValueError.
+config.set_main_option("sqlalchemy.url", settings.database_url.replace("%", "%%"))
 
 target_metadata = SQLModel.metadata
 
