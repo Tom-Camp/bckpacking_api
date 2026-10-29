@@ -1,4 +1,6 @@
 import asyncio
+import logging
+import sys
 
 from alembic import context
 from sqlalchemy import pool
@@ -14,9 +16,10 @@ from app.utils.logging import configure_logging
 # access to the values within the .ini file in use.
 config = context.config
 
-# Log like the app (JSON in the container). Not in offline (--sql) mode, where the SQL goes to stdout too.
-if not context.is_offline_mode():
-    configure_logging(log_level=settings.log_level, json_logs=settings.json_logs)
+# Log like the app (JSON in the container), but to stderr as alembic.ini did, so `--sql` output on stdout stays
+# clean. alembic's own logger stays at INFO whatever LOG_LEVEL is, so startup logs show which migrations ran.
+configure_logging(log_level=settings.log_level, json_logs=settings.json_logs, stream=sys.stderr)
+logging.getLogger("alembic").setLevel(logging.INFO)
 
 config.set_main_option("sqlalchemy.url", settings.database_url)
 
