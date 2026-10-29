@@ -6,6 +6,10 @@ from pydantic import BaseModel, ConfigDict, StringConstraints, ValidationInfo, f
 # result must not be empty, so "   " is a 422 rather than a stored "".
 NonBlankStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
+# Upper bound for int fields stored in a Postgres INTEGER column, so an oversized value is a 422
+# rather than a DataError (500) from the database.
+INT32_MAX = 2_147_483_647
+
 
 def _drop_null_from_non_nullable(schema: dict[str, Any], model_cls: type[BaseModel]) -> None:
     # Fields are declared `X | None = None` so they can be omitted, which makes the generated

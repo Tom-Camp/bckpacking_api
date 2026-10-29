@@ -4,6 +4,8 @@ from typing import Any, cast
 import pytest
 from httpx import AsyncClient
 
+from app.schemas.base import INT32_MAX
+
 TRIP_PAYLOAD = {"name": "Wonderland Trail", "total_distance_m": 149_700}
 
 
@@ -293,18 +295,84 @@ async def test_negative_numbers_are_rejected(
     body: dict[str, Any],
     field: str,
 ) -> None:
-    trip = await _create_trip(client, auth_headers)
-    trip_url = f"/api/v1/trips/{trip['id']}"
-    urls = {"trip": trip_url}
-    if "{trip_gear}" in path:
-        urls["trip_gear"] = await _trip_gear_url(client, auth_headers, trip["id"])
-    if "{food}" in path:
-        urls["food"] = await _food_item_url(client, auth_headers, trip["id"])
+    url = await _numeric_field_url(client, auth_headers, path)
 
-    response = await client.request(method, path.format(**urls), json=body, headers=auth_headers)
+    response = await client.request(method, url, json=body, headers=auth_headers)
 
     assert response.status_code == 422
     assert response.json()["detail"][0]["loc"] == ["body", field]
+
+
+INT_FIELDS = [
+    pytest.param(
+        "POST", "{trip}/food-plan/items", {"name": "Tea", "weight_g": 0, "kcal": 0}, "day", id="create-day"
+    ),
+    pytest.param(
+        "POST", "{trip}/food-plan/items", {"day": 1, "name": "Tea", "weight_g": 0}, "kcal", id="create-kcal"
+    ),
+    pytest.param("PATCH", "{food}", {}, "day", id="update-day"),
+    pytest.param("PATCH", "{food}", {}, "kcal", id="update-kcal"),
+    pytest.param("PATCH", "{trip}/food-plan", {}, "target_kcal_per_day", id="target-kcal"),
+    pytest.param("POST", "{trip}/gear", {}, "quantity", id="create-quantity"),
+    pytest.param("PATCH", "{trip_gear}", {}, "quantity", id="update-quantity"),
+]
+
+
+@pytest.mark.parametrize(("method", "path", "body", "field"), INT_FIELDS)
+async def test_int_fields_reject_values_beyond_int32(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    method: str,
+    path: str,
+    body: dict[str, Any],
+    field: str,
+) -> None:
+    url = await _numeric_field_url(client, auth_headers, path)
+    body = body | await _gear_item_ref(client, auth_headers, path) | {field: INT32_MAX + 1}
+
+    response = await client.request(method, url, json=body, headers=auth_headers)
+
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["loc"] == ["body", field]
+
+
+@pytest.mark.parametrize(("method", "path", "body", "field"), INT_FIELDS)
+async def test_int_fields_accept_int32_max(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    method: str,
+    path: str,
+    body: dict[str, Any],
+    field: str,
+) -> None:
+    url = await _numeric_field_url(client, auth_headers, path)
+    body = body | await _gear_item_ref(client, auth_headers, path) | {field: INT32_MAX}
+
+    response = await client.request(method, url, json=body, headers=auth_headers)
+
+    assert response.status_code in (200, 201)
+    assert response.json()[field] == INT32_MAX
+
+
+async def _numeric_field_url(client: AsyncClient, headers: dict[str, str], path: str) -> str:
+    """Create a trip (plus the trip gear or food item ``path`` refers to) and fill in ``path``."""
+    trip = await _create_trip(client, headers)
+    urls = {"trip": f"/api/v1/trips/{trip['id']}"}
+    if "{trip_gear}" in path:
+        urls["trip_gear"] = await _trip_gear_url(client, headers, trip["id"])
+    if "{food}" in path:
+        urls["food"] = await _food_item_url(client, headers, trip["id"])
+    return path.format(**urls)
+
+
+async def _gear_item_ref(client: AsyncClient, headers: dict[str, str], path: str) -> dict[str, Any]:
+    """The closet item a POST to a trip's gear list needs; nothing for any other path."""
+    if path != "{trip}/gear":
+        return {}
+    item = await client.post(
+        "/api/v1/gear", json={"name": "Stove", "category": "cooking_water"}, headers=headers
+    )
+    return {"gear_item_id": item.json()["id"]}
 
 
 async def test_zero_is_allowed_for_weights_and_calories(
