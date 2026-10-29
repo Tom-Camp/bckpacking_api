@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, computed_fiel
 
 from app.models.gear import GearCategory, GearKind
 from app.models.trip import ChecklistItemKey, ChecklistStatus, Meal, Trip, TripType
-from app.schemas.base import NonBlankStr, UpdateSchema
+from app.schemas.base import INT32_MAX, NonBlankStr, UpdateSchema
 from app.schemas.gear import GearItemRead
 
 
@@ -98,14 +98,14 @@ class TripUpdate(UpdateSchema):
 
 class TripGearCreate(BaseModel):
     gear_item_id: uuid.UUID
-    quantity: int = Field(default=1, ge=1)
+    quantity: int = Field(default=1, ge=1, le=INT32_MAX)
     packed: bool = False
 
 
 class TripGearUpdate(UpdateSchema):
     non_nullable = frozenset({"quantity", "packed"})
 
-    quantity: int | None = Field(default=None, ge=1)
+    quantity: int | None = Field(default=None, ge=1, le=INT32_MAX)
     packed: bool | None = None
 
 
@@ -161,23 +161,23 @@ class ChecklistItemRead(BaseModel):
 
 
 class TripFoodCreate(BaseModel):
-    day: int = Field(ge=1)
+    day: int = Field(ge=1, le=INT32_MAX)
     name: NonBlankStr
     meal_type: Meal = Meal.BREAKFAST
     servings: float = Field(default=1, gt=0)
     weight_g: float = Field(ge=0)
-    kcal: int = Field(ge=0)
+    kcal: int = Field(ge=0, le=INT32_MAX)
 
 
 class TripFoodUpdate(UpdateSchema):
     non_nullable = frozenset({"day", "name", "meal_type", "servings", "weight_g", "kcal"})
 
-    day: int | None = Field(default=None, ge=1)
+    day: int | None = Field(default=None, ge=1, le=INT32_MAX)
     name: NonBlankStr | None = None
     meal_type: Meal | None = None
     servings: float | None = Field(default=None, gt=0)
     weight_g: float | None = Field(default=None, ge=0)
-    kcal: int | None = Field(default=None, ge=0)
+    kcal: int | None = Field(default=None, ge=0, le=INT32_MAX)
 
 
 class TripFoodRead(BaseModel):
@@ -198,7 +198,7 @@ class TripFoodRead(BaseModel):
 class FoodPlannerUpdate(UpdateSchema):
     non_nullable = frozenset({"target_kcal_per_day", "target_food_g_per_day"})
 
-    target_kcal_per_day: int | None = Field(default=None, ge=0)
+    target_kcal_per_day: int | None = Field(default=None, ge=0, le=INT32_MAX)
     target_food_g_per_day: float | None = Field(default=None, ge=0)
 
 
