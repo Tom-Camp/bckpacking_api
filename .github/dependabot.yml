@@ -41,3 +41,14 @@ updates:
     commit-message:
       prefix: "build"
       include: "scope"
+
+  - package-ecosystem: "docker"
+    directory: "/"
+    target-branch: "develop"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    commit-message:
+      prefix: "build"
+      include: "scope"
