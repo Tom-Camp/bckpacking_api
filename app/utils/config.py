@@ -1,6 +1,6 @@
 from urllib.parse import quote
 
-from pydantic import computed_field
+from pydantic import SecretStr, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -23,6 +23,14 @@ class Settings(BaseSettings):
     postgres_db: str
     postgres_host: str = "localhost"
     postgres_port: int = 5432
+
+    # Email via Resend. Without a key, services/email logs messages instead of sending them.
+    resend_api_key: SecretStr | None = None
+    # Must be an address on the domain verified in Resend
+    email_from: str = "bckpack.ing <no-reply@bckpack.ing>"
+    # The UI origin that links in emails point to. The API runs behind nginx, so it can't work this out
+    # from the request.
+    app_base_url: str = "http://localhost:5173"
 
     # Dev only: the password for the accounts scripts/seed.py creates. The script refuses to run without
     # it, so never set it on a server.

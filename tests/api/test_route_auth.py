@@ -10,6 +10,8 @@ from app.main import app
 _PUBLIC_ROUTES = {
     ("POST", "/api/v1/auth/register"),
     ("POST", "/api/v1/auth/login"),
+    ("POST", "/api/v1/auth/forgot-password"),
+    ("POST", "/api/v1/auth/reset-password"),
 }
 _PUBLIC_PREFIX = "/api/v1/shared/"
 
