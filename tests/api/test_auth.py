@@ -7,11 +7,16 @@ from httpx import AsyncClient, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
+from app.api.v1.auth import EMAIL_NOT_VERIFIED
 from app.auth.tokens import create_access_token
 from app.models.user import User, UserRole, UserStatus
 from app.services import user as user_service
 from app.utils.config import settings
+from scripts.seed import seed
+from scripts.seed_data import USERS
 from tests.api.conftest import _PASSWORD, _make_active_user
+
+_SEED_PASSWORD = "test-only-ridgeline-cairn-7"  # nosec B105
 
 
 async def _register(client: AsyncClient, email: str, username: str) -> int:
@@ -40,8 +45,11 @@ async def test_register_rejects_case_variant_of_existing_email(client: AsyncClie
     assert response.json()["detail"] == "Email already registered"
 
 
-async def test_login_is_case_insensitive(client: AsyncClient) -> None:
+async def test_login_is_case_insensitive(client: AsyncClient, session: AsyncSession) -> None:
     assert await _register(client, "Tom@Example.com", "tom") == 201
+    tom = await user_service.get_user_by_username(session, "tom")
+    assert tom is not None
+    await user_service.mark_email_verified(session, tom)
 
     for email in ("Tom@Example.com", "tom@example.com", "TOM@EXAMPLE.COM"):
         response = await client.post("/api/v1/auth/login", json={"email": email, "password": _PASSWORD})
@@ -85,6 +93,22 @@ async def test_admin_email_with_different_case_still_bootstraps_admin(
     assert owner.status == UserStatus.ACTIVE
 
 
+async def test_admin_email_user_cannot_log_in_until_verified(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch, outbox: list[dict[str, str]]
+) -> None:
+    # Whoever registers with ADMIN_EMAIL first gets admin, so they must prove they own the inbox (#42)
+    monkeypatch.setattr(settings, "admin_email", "owner@example.com")
+    assert await _register(client, "owner@example.com", "owner") == 201
+
+    refused = await _login(client, "owner@example.com")
+    await _verify_from(client, outbox[0])
+    allowed = await _login(client, "owner@example.com")
+
+    assert refused.status_code == 403
+    assert refused.json()["detail"] == EMAIL_NOT_VERIFIED
+    assert allowed.status_code == 200
+
+
 async def test_ensure_admin_matches_email_case_insensitively(session: AsyncSession) -> None:
     owner = await _make_active_user(session, "owner@example.com", "owner")
     assert owner.role == UserRole.USER
@@ -100,8 +124,18 @@ async def _login(client: AsyncClient, email: str, password: str = _PASSWORD) -> 
     return await client.post("/api/v1/auth/login", json={"email": email, "password": password})
 
 
-async def test_register_then_login_returns_a_working_bearer_token(client: AsyncClient) -> None:
+async def _verify_from(client: AsyncClient, message: dict[str, str]) -> None:
+    prefix = "https://ui.example/verify-email#"
+    [line] = [line for line in message["text"].splitlines() if line.startswith(prefix)]
+    response = await client.post("/api/v1/auth/verify-email", json={"token": line.removeprefix(prefix)})
+    assert response.status_code == 204
+
+
+async def test_register_then_login_returns_a_working_bearer_token(
+    client: AsyncClient, outbox: list[dict[str, str]]
+) -> None:
     assert await _register(client, "new@example.com", "newbie") == 201
+    await _verify_from(client, outbox[0])
 
     response = await _login(client, "new@example.com")
 
@@ -167,7 +201,11 @@ async def test_wrong_password_and_unknown_email_get_the_same_401(client: AsyncCl
     assert wrong_password.json() == unknown_email.json()
 
 
-async def test_blocked_user_cannot_log_in(client: AsyncClient, session: AsyncSession, user: User) -> None:
+@pytest.mark.parametrize("verified", [True, False])
+async def test_blocked_user_cannot_log_in(
+    client: AsyncClient, session: AsyncSession, verified: bool
+) -> None:
+    user = await _make_active_user(session, "blocked@example.com", "blocked", verified=verified)
     user.status = UserStatus.BLOCKED
     session.add(user)
     await session.commit()
@@ -192,6 +230,14 @@ async def test_first_login_is_set_once_and_last_login_on_every_login(
     await session.refresh(user)
     assert user.first_login == first_login
     assert user.last_login is not None and user.last_login > last_login
+
+
+async def test_seeded_accounts_can_log_in(client: AsyncClient, session: AsyncSession) -> None:
+    await seed(session, _SEED_PASSWORD)
+
+    statuses = {u.username: (await _login(client, u.email, _SEED_PASSWORD)).status_code for u in USERS}
+
+    assert statuses == {u.username: 403 if u.status == UserStatus.BLOCKED else 200 for u in USERS}
 
 
 def _token(payload: dict[str, object], secret: str = settings.jwt_secret) -> str:

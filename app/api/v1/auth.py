@@ -22,6 +22,9 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+# The UI matches this detail to offer a resend link, so it's part of the API contract
+EMAIL_NOT_VERIFIED = "Email not verified"
+
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 async def register(
@@ -53,6 +56,8 @@ async def login(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
     if user.status == UserStatus.BLOCKED:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account suspended")
+    if user.email_verified_at is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=EMAIL_NOT_VERIFIED)
     await user_service.record_login(session, user)
     return TokenResponse(access_token=create_access_token(user))
 

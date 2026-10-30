@@ -1,7 +1,6 @@
 import hashlib
 from datetime import UTC, datetime, timedelta
 
-import pytest
 from httpx import AsyncClient
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,8 +9,6 @@ from sqlmodel import col, select
 from app.models.auth_token import AuthToken, TokenPurpose
 from app.models.user import User, UserStatus
 from app.services import auth_token
-from app.services import email as email_service
-from app.utils.config import settings
 from tests.api.conftest import _PASSWORD
 
 _NEW_PASSWORD = "Ziv8%quartz-Lantern!muskeg"  # nosec B105
@@ -19,18 +16,6 @@ _FORGOT = "/api/v1/auth/forgot-password"
 _RESET = "/api/v1/auth/reset-password"
 _MESSAGE = {"message": "If an account exists for that email, we've sent a reset link."}
 _INVALID = "This reset link is invalid or has expired"
-
-
-@pytest.fixture
-def outbox(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, str]]:
-    sent: list[dict[str, str]] = []
-
-    async def _send(to: str, subject: str, text: str, html: str) -> None:
-        sent.append({"to": to, "subject": subject, "text": text, "html": html})
-
-    monkeypatch.setattr(email_service, "send_email", _send)
-    monkeypatch.setattr(settings, "app_base_url", "https://ui.example")
-    return sent
 
 
 def _token_from(message: dict[str, str]) -> str:
