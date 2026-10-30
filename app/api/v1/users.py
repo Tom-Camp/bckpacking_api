@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user, require_active_user
+from app.auth.tokens import create_access_token
 from app.db import get_session
 from app.models.user import User
-from app.schemas.user import ChangePasswordRequest, UserRead, UserUpdate
+from app.schemas.user import ChangePasswordRequest, TokenResponse, UserRead, UserUpdate
 from app.services import user as user_service
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -25,10 +26,12 @@ async def update_me(
     return UserRead.model_validate(user)
 
 
-@router.post("/me/password", status_code=status.HTTP_204_NO_CONTENT)
+@router.post("/me/password", response_model=TokenResponse)
 async def change_my_password(
     data: ChangePasswordRequest,
     user: User = Depends(require_active_user),
     session: AsyncSession = Depends(get_session),
-) -> None:
+) -> TokenResponse:
+    # The change revokes every earlier token, this request's included, so hand back a fresh one
     await user_service.change_password(session, user, data)
+    return TokenResponse(access_token=create_access_token(user))

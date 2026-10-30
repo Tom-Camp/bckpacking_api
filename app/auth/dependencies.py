@@ -11,18 +11,22 @@ from app.services import user as user_service
 _bearer = HTTPBearer()
 
 
+def _invalid_token() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid or expired token",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(_bearer),
     session: AsyncSession = Depends(get_session),
 ) -> User:
     try:
-        user_id = decode_access_token(credentials.credentials)
+        user_id, token_version = decode_access_token(credentials.credentials)
     except jwt.PyJWTError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired token",
-            headers={"WWW-Authenticate": "Bearer"},
-        ) from exc
+        raise _invalid_token() from exc
     user = await user_service.get_user(session, user_id)
     if not user:
         raise HTTPException(
@@ -30,6 +34,9 @@ async def get_current_user(
             detail="User not found",
             headers={"WWW-Authenticate": "Bearer"},
         ) from None
+    # Issued before a password reset or change: answered like an expired token
+    if token_version != user.token_version:
+        raise _invalid_token()
     return user
 
 

@@ -48,7 +48,7 @@ async def login(
     if user.status == UserStatus.BLOCKED:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account suspended")
     await user_service.record_login(session, user)
-    return TokenResponse(access_token=create_access_token(user.id))
+    return TokenResponse(access_token=create_access_token(user))
 
 
 @router.post("/forgot-password", status_code=status.HTTP_202_ACCEPTED)

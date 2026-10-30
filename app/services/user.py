@@ -138,6 +138,7 @@ async def change_password(session: AsyncSession, user: User, data: ChangePasswor
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
     await _reject_weak_password(data.new_password, field="new_password")
     user.password_hash = await run_in_threadpool(hash_password, data.new_password)
+    user.token_version += 1  # signs out other devices; the route returns a token for this one
     session.add(user)
     await session.commit()
 
@@ -172,6 +173,7 @@ async def reset_password(session: AsyncSession, data: ResetPasswordRequest) -> N
     # Before using the token up, so a weak password leaves the link usable for another try
     await _reject_weak_password(data.password, field="password")
     user.password_hash = await run_in_threadpool(hash_password, data.password)
+    user.token_version += 1  # revokes every access token issued before the reset
     session.add(user)
     if not await auth_token.consume(session, token):
         await session.rollback()

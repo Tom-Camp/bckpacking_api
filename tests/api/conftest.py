@@ -51,9 +51,9 @@ async def other_user(session: AsyncSession) -> User:
 
 @pytest.fixture
 def auth_headers(user: User) -> dict[str, str]:
-    return {"Authorization": f"Bearer {create_access_token(user.id)}"}
+    return {"Authorization": f"Bearer {create_access_token(user)}"}
 
 
 @pytest.fixture
 def other_auth_headers(other_user: User) -> dict[str, str]:
-    return {"Authorization": f"Bearer {create_access_token(other_user.id)}"}
+    return {"Authorization": f"Bearer {create_access_token(other_user)}"}
