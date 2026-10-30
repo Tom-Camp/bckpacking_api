@@ -9,10 +9,12 @@ from app.db import get_session
 from app.models.user import UserStatus
 from app.schemas.user import (
     ForgotPasswordRequest,
+    ResendVerificationRequest,
     ResetPasswordRequest,
     TokenResponse,
     UserCreate,
     UserLogin,
+    VerifyEmailRequest,
 )
 from app.services import user as user_service
 
@@ -24,17 +26,21 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 @router.post("/register", status_code=status.HTTP_201_CREATED)
 async def register(
     user: UserCreate,
+    background_tasks: BackgroundTasks,
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, str]:
     try:
-        await user_service.create_user(session=session, user=user, initial_status=UserStatus.ACTIVE)
+        db_user = await user_service.create_user(
+            session=session, user=user, initial_status=UserStatus.ACTIVE
+        )
     except IntegrityError as exc:
         detail = (
             "Username already taken" if "username" in str(exc.orig).lower() else "Email already registered"
         )
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail) from None
 
-    return {"message": "Registration successful."}
+    await user_service.send_verification_email(session, db_user, background_tasks)
+    return {"message": "Registration successful. Check your email to verify your account."}
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -67,3 +73,21 @@ async def reset_password(
     session: AsyncSession = Depends(get_session),
 ) -> None:
     await user_service.reset_password(session, data)
+
+
+@router.post("/verify-email", status_code=status.HTTP_204_NO_CONTENT)
+async def verify_email(
+    data: VerifyEmailRequest,
+    session: AsyncSession = Depends(get_session),
+) -> None:
+    await user_service.verify_email(session, data)
+
+
+@router.post("/resend-verification", status_code=status.HTTP_202_ACCEPTED)
+async def resend_verification(
+    data: ResendVerificationRequest,
+    background_tasks: BackgroundTasks,
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, str]:
+    await user_service.resend_verification(session, data, background_tasks)
+    return {"message": "If that account needs verifying, we've sent a new link."}

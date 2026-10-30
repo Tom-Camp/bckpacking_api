@@ -12,6 +12,8 @@ _PUBLIC_ROUTES = {
     ("POST", "/api/v1/auth/login"),
     ("POST", "/api/v1/auth/forgot-password"),
     ("POST", "/api/v1/auth/reset-password"),
+    ("POST", "/api/v1/auth/verify-email"),
+    ("POST", "/api/v1/auth/resend-verification"),
 }
 _PUBLIC_PREFIX = "/api/v1/shared/"
 

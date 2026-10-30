@@ -79,6 +79,8 @@ def _user_create(seed: SeedUser, password: str) -> UserCreate:
 
 async def _create_user(session: AsyncSession, seed: SeedUser, data: UserCreate) -> User:
     user = await user_service.create_user(session, data)
+    # Verified, so seed accounts can sign in once login requires a verified address (#92)
+    user = await user_service.mark_email_verified(session, user)
     body_weight_g = seed.body_weight_lb * LB_TO_G if seed.body_weight_lb is not None else None
     user = await user_service.update_user(
         session, user, UserUpdate(measurements=seed.measurements, body_weight_g=body_weight_g)

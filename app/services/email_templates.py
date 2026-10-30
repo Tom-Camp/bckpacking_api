@@ -23,3 +23,21 @@ def password_reset(link: str) -> Email:
             "Your password won't change.</p>"
         ),
     )
+
+
+def verify_email(link: str) -> Email:
+    return Email(
+        subject="Verify your bckpack.ing email address",
+        text=(
+            "Welcome to bckpack.ing! Confirm that this is your email address to finish setting up your account.\n\n"
+            f"Open this link within the next 24 hours:\n{link}\n\n"
+            "If you didn't create an account, you can ignore this email.\n"
+        ),
+        html=(
+            "<p>Welcome to bckpack.ing! Confirm that this is your email address to finish setting up your "
+            "account.</p>"
+            f'<p><a href="{escape(link)}">Verify my email address</a></p>'
+            "<p>The link works for the next 24 hours. If you didn't create an account, you can ignore this "
+            "email.</p>"
+        ),
+    )
