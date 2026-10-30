@@ -210,13 +210,13 @@ async def test_resend_for_an_unknown_email_sends_nothing(
 
 
 async def test_resend_for_a_blocked_user_sends_nothing(
-    client: AsyncClient, session: AsyncSession, user: User, outbox: list[dict[str, str]]
+    client: AsyncClient, session: AsyncSession, unverified: User, outbox: list[dict[str, str]]
 ) -> None:
-    user.status = UserStatus.BLOCKED
-    session.add(user)
+    unverified.status = UserStatus.BLOCKED
+    session.add(unverified)
     await session.commit()
 
-    response = await client.post(_RESEND, json={"email": user.email})
+    response = await client.post(_RESEND, json={"email": unverified.email})
 
     assert response.status_code == 202
     assert response.json() == _RESEND_MESSAGE
@@ -240,12 +240,13 @@ async def test_password_reset_verifies_the_email(
 
 
 async def test_superseded_token_still_succeeds_once_verified(
-    client: AsyncClient, session: AsyncSession, user: User
+    client: AsyncClient, session: AsyncSession, unverified: User
 ) -> None:
     # An older link followed after the address was verified through a newer one: nothing to report
-    old = await auth_token.issue(session, user, TokenPurpose.VERIFY_EMAIL, timedelta(hours=24))
-    new = await auth_token.issue(session, user, TokenPurpose.VERIFY_EMAIL, timedelta(hours=24))
+    old = await auth_token.issue(session, unverified, TokenPurpose.VERIFY_EMAIL, timedelta(hours=24))
+    new = await auth_token.issue(session, unverified, TokenPurpose.VERIFY_EMAIL, timedelta(hours=24))
     await session.commit()
+    assert unverified.email_verified_at is None
     assert await _verify(client, new) == 204
 
     assert await _verify(client, old) == 204
