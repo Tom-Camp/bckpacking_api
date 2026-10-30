@@ -42,6 +42,8 @@ class User(ModelBase, table=True):
     last_login: datetime | None = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
     )
+    # Copied into each access token's "ver" claim. Bumping it revokes every token issued before.
+    token_version: int = Field(default=0, sa_column_kwargs={"server_default": "0"})
     trips: list[Trip] = Relationship(
         back_populates="user", passive_deletes=True, sa_relationship_kwargs={"lazy": "raise_on_sql"}
     )

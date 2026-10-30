@@ -92,8 +92,9 @@ async def test_change_password_replaces_the_login_password(
 ) -> None:
     status, body = await _change_password(client, auth_headers, _PASSWORD, _NEW_PASSWORD)
 
-    assert status == 204
-    assert body is None
+    assert status == 200
+    assert body is not None
+    assert body["token_type"] == "bearer"
     assert await _login_status(client, user.email, _NEW_PASSWORD) == 200
     assert await _login_status(client, user.email, _PASSWORD) == 401
 

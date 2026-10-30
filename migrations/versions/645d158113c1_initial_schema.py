@@ -52,6 +52,7 @@ def upgrade() -> None:
         ),
         sa.Column("first_login", sa.DateTime(timezone=True), nullable=True),
         sa.Column("last_login", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("token_version", sa.Integer(), server_default="0", nullable=False),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(op.f("ix_user_email"), "user", ["email"], unique=True)

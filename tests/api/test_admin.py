@@ -26,7 +26,7 @@ async def admin(session: AsyncSession) -> User:
 
 @pytest.fixture
 def admin_headers(admin: User) -> dict[str, str]:
-    return {"Authorization": f"Bearer {create_access_token(admin.id)}"}
+    return {"Authorization": f"Bearer {create_access_token(admin)}"}
 
 
 def _admin_routes() -> list[tuple[str, str]]:

@@ -209,12 +209,30 @@ def _bad_tokens(user_id: uuid.UUID) -> dict[str, str]:
         "wrong_secret": _token({"sub": str(user_id), "exp": exp}, secret="another-secret-" + "x" * 32),
         "no_sub": _token({"exp": exp}),
         "sub_not_uuid": _token({"sub": "hiker", "exp": exp}),
-        "unknown_user": create_access_token(uuid.uuid4()),
+        "no_ver": _token({"sub": str(user_id), "exp": exp}),
+        "ver_not_int": _token({"sub": str(user_id), "ver": "0", "exp": exp}),
+        "ver_bool": _token({"sub": str(user_id), "ver": False, "exp": exp}),
+        "stale_ver": _token({"sub": str(user_id), "ver": -1, "exp": exp}),
+        "unknown_user": create_access_token(
+            User(id=uuid.uuid4(), email="x", username="x", password_hash="x")  # noqa: S106
+        ),
     }
 
 
 @pytest.mark.parametrize(
-    "case", ["malformed", "expired", "wrong_secret", "no_sub", "sub_not_uuid", "unknown_user"]
+    "case",
+    [
+        "malformed",
+        "expired",
+        "wrong_secret",
+        "no_sub",
+        "sub_not_uuid",
+        "no_ver",
+        "ver_not_int",
+        "ver_bool",
+        "stale_ver",
+        "unknown_user",
+    ],
 )
 async def test_bad_token_gets_401(client: AsyncClient, user: User, case: str) -> None:
     token = _bad_tokens(user.id)[case]
