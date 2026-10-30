@@ -1,8 +1,8 @@
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import structlog
-from fastapi import HTTPException, status
+from fastapi import BackgroundTasks, HTTPException, status
 from fastapi.concurrency import run_in_threadpool
 from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import SQLAlchemyError
@@ -10,12 +10,25 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import select
 
 from app.auth.passwords import check_password_strength, hash_password, verify_password
+from app.models.auth_token import TokenPurpose
 from app.models.user import User, UserRole, UserStatus
-from app.schemas.user import ChangePasswordRequest, UserCreate, UserLogin, UserUpdate
+from app.schemas.user import (
+    ChangePasswordRequest,
+    ForgotPasswordRequest,
+    ResetPasswordRequest,
+    UserCreate,
+    UserLogin,
+    UserUpdate,
+)
+from app.services import auth_token, email_templates
+from app.services import email as email_service
 from app.services.base import save_updates
 from app.utils.config import settings
 
 logger = structlog.get_logger()
+
+RESET_TOKEN_TTL = timedelta(hours=1)
+RESET_COOLDOWN = timedelta(seconds=60)
 
 
 def _maybe_bootstrap_admin(user: User) -> None:
@@ -126,6 +139,43 @@ async def change_password(session: AsyncSession, user: User, data: ChangePasswor
     await _reject_weak_password(data.new_password, field="new_password")
     user.password_hash = await run_in_threadpool(hash_password, data.new_password)
     session.add(user)
+    await session.commit()
+
+
+async def request_password_reset(
+    session: AsyncSession, data: ForgotPasswordRequest, background_tasks: BackgroundTasks
+) -> None:
+    # The caller answers the same way whatever happens here, so the response doesn't reveal whether the
+    # account exists. The email goes out after the response, so its timing doesn't either.
+    result = await session.execute(select(User).where(User.email == data.email))
+    user = result.scalar_one_or_none()
+    if user is None or user.status == UserStatus.BLOCKED:
+        return
+    if await auth_token.recently_issued(session, user, TokenPurpose.RESET_PASSWORD, RESET_COOLDOWN):
+        return
+    raw = await auth_token.issue(session, user, TokenPurpose.RESET_PASSWORD, RESET_TOKEN_TTL)
+    await session.commit()
+    # A fragment, like share links, so the token never reaches nginx access logs or a Referer header
+    email = email_templates.password_reset(f"{settings.app_base_url.rstrip('/')}/reset-password#{raw}")
+    background_tasks.add_task(email_service.send_email, user.email, email.subject, email.text, email.html)
+
+
+async def reset_password(session: AsyncSession, data: ResetPasswordRequest) -> None:
+    # 400 rather than 401: the UI treats any 401 as an expired session and prompts a re-login.
+    invalid = HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST, detail="This reset link is invalid or has expired"
+    )
+    token = await auth_token.find_valid(session, data.token, TokenPurpose.RESET_PASSWORD)
+    user = await session.get(User, token.user_id) if token else None
+    if token is None or user is None or user.status == UserStatus.BLOCKED:
+        raise invalid
+    # Before using the token up, so a weak password leaves the link usable for another try
+    await _reject_weak_password(data.password, field="password")
+    user.password_hash = await run_in_threadpool(hash_password, data.password)
+    session.add(user)
+    if not await auth_token.consume(session, token):
+        await session.rollback()
+        raise invalid
     await session.commit()
 
 

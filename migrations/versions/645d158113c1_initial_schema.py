@@ -57,6 +57,25 @@ def upgrade() -> None:
     op.create_index(op.f("ix_user_email"), "user", ["email"], unique=True)
     op.create_index(op.f("ix_user_username"), "user", ["username"], unique=True)
     op.create_table(
+        "authtoken",
+        sa.Column("id", sa.Uuid(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("user_id", sa.Uuid(), nullable=False),
+        sa.Column(
+            "purpose",
+            sa.Enum("reset_password", name="tokenpurpose", native_enum=False, length=32),
+            nullable=False,
+        ),
+        sa.Column("token_hash", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("used_at", sa.DateTime(timezone=True), nullable=True),
+        sa.ForeignKeyConstraint(["user_id"], ["user.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(op.f("ix_authtoken_token_hash"), "authtoken", ["token_hash"], unique=True)
+    op.create_index(op.f("ix_authtoken_user_id"), "authtoken", ["user_id"], unique=False)
+    op.create_table(
         "gearitem",
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
@@ -227,6 +246,9 @@ def downgrade() -> None:
     op.drop_table("trip")
     op.drop_index(op.f("ix_gearitem_user_id"), table_name="gearitem")
     op.drop_table("gearitem")
+    op.drop_index(op.f("ix_authtoken_user_id"), table_name="authtoken")
+    op.drop_index(op.f("ix_authtoken_token_hash"), table_name="authtoken")
+    op.drop_table("authtoken")
     op.drop_index(op.f("ix_user_username"), table_name="user")
     op.drop_index(op.f("ix_user_email"), table_name="user")
     op.drop_table("user")
