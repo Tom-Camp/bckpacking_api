@@ -1,15 +1,15 @@
 import hashlib
 from datetime import UTC, datetime, timedelta
-from uuid import uuid4
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import insert, update
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlmodel import col, select
 
-from app.models.auth_token import AuthToken
+from app.models.auth_token import AuthToken, TokenPurpose
 from app.models.user import User, UserStatus
+from app.services import auth_token
 from app.services import email as email_service
 from app.utils.config import settings
 from tests.api.conftest import _PASSWORD
@@ -194,17 +194,7 @@ async def test_new_token_invalidates_the_earlier_one(
 async def test_token_for_another_purpose_cannot_reset(
     client: AsyncClient, session: AsyncSession, user: User
 ) -> None:
-    # Inserted with SQL: the enum has no other member yet (#91 adds verify_email)
-    raw = "verify-token"
-    await session.execute(
-        insert(AuthToken).values(
-            id=uuid4(),
-            user_id=user.id,
-            purpose="verify_email",
-            token_hash=hashlib.sha256(raw.encode()).hexdigest(),
-            expires_at=datetime.now(UTC) + timedelta(hours=1),
-        )
-    )
+    raw = await auth_token.issue(session, user, TokenPurpose.VERIFY_EMAIL, timedelta(hours=1))
     await session.commit()
 
     response = await client.post(_RESET, json={"token": raw, "password": _NEW_PASSWORD})

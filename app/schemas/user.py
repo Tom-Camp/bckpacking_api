@@ -96,6 +96,7 @@ class UserRead(BaseModel):
     role: UserRole
     first_login: datetime | None = None
     last_login: datetime | None = None
+    email_verified_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -112,6 +113,19 @@ class ForgotPasswordRequest(BaseModel):
     @classmethod
     def normalize_email(cls, v: str) -> str:
         return _normalize_email(v)
+
+
+class ResendVerificationRequest(BaseModel):
+    email: EmailStr
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, v: str) -> str:
+        return _normalize_email(v)
+
+
+class VerifyEmailRequest(BaseModel):
+    token: str
 
 
 class ChangePasswordRequest(BaseModel):

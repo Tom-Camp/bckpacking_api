@@ -55,6 +55,8 @@ async def test_seed_creates_the_accounts(session: AsyncSession) -> None:
     assert users["metric"].measurements == Unit.METRIC
     assert users["hiker"].measurements == Unit.IMPERIAL
     assert users["hiker"].body_weight_g == pytest.approx(86182.55, abs=0.01)  # 190 lb
+    # Verified, so they can still sign in once login requires it (#92)
+    assert all(user.email_verified_at is not None for user in users.values())
 
 
 async def test_seed_builds_the_hikers_closet_and_trips(session: AsyncSession) -> None:

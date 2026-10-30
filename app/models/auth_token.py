@@ -10,6 +10,7 @@ from app.models.base import ModelBase, enum_field
 
 class TokenPurpose(StrEnum):
     RESET_PASSWORD = "reset_password"  # noqa: S105 - a token purpose, not a secret
+    VERIFY_EMAIL = "verify_email"
 
 
 class AuthToken(ModelBase, table=True):

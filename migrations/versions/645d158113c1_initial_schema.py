@@ -53,6 +53,7 @@ def upgrade() -> None:
         sa.Column("first_login", sa.DateTime(timezone=True), nullable=True),
         sa.Column("last_login", sa.DateTime(timezone=True), nullable=True),
         sa.Column("token_version", sa.Integer(), server_default="0", nullable=False),
+        sa.Column("email_verified_at", sa.DateTime(timezone=True), nullable=True),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(op.f("ix_user_email"), "user", ["email"], unique=True)
@@ -65,7 +66,7 @@ def upgrade() -> None:
         sa.Column("user_id", sa.Uuid(), nullable=False),
         sa.Column(
             "purpose",
-            sa.Enum("reset_password", name="tokenpurpose", native_enum=False, length=32),
+            sa.Enum("reset_password", "verify_email", name="tokenpurpose", native_enum=False, length=32),
             nullable=False,
         ),
         sa.Column("token_hash", sqlmodel.sql.sqltypes.AutoString(), nullable=False),

@@ -15,10 +15,12 @@ from app.models.user import User, UserRole, UserStatus
 from app.schemas.user import (
     ChangePasswordRequest,
     ForgotPasswordRequest,
+    ResendVerificationRequest,
     ResetPasswordRequest,
     UserCreate,
     UserLogin,
     UserUpdate,
+    VerifyEmailRequest,
 )
 from app.services import auth_token, email_templates
 from app.services import email as email_service
@@ -29,6 +31,8 @@ logger = structlog.get_logger()
 
 RESET_TOKEN_TTL = timedelta(hours=1)
 RESET_COOLDOWN = timedelta(seconds=60)
+VERIFY_TOKEN_TTL = timedelta(hours=24)
+VERIFY_COOLDOWN = timedelta(seconds=60)
 
 
 def _maybe_bootstrap_admin(user: User) -> None:
@@ -143,21 +147,29 @@ async def change_password(session: AsyncSession, user: User, data: ChangePasswor
     await session.commit()
 
 
+def _email_link(path: str, raw_token: str) -> str:
+    # A fragment, like share links, so the token never reaches nginx access logs or a Referer header
+    return f"{settings.app_base_url.rstrip('/')}/{path}#{raw_token}"
+
+
+async def get_user_by_email(session: AsyncSession, email: str) -> User | None:
+    result = await session.execute(select(User).where(User.email == email))
+    return result.scalar_one_or_none()
+
+
 async def request_password_reset(
     session: AsyncSession, data: ForgotPasswordRequest, background_tasks: BackgroundTasks
 ) -> None:
     # The caller answers the same way whatever happens here, so the response doesn't reveal whether the
     # account exists. The email goes out after the response, so its timing doesn't either.
-    result = await session.execute(select(User).where(User.email == data.email))
-    user = result.scalar_one_or_none()
+    user = await get_user_by_email(session, data.email)
     if user is None or user.status == UserStatus.BLOCKED:
         return
     if await auth_token.recently_issued(session, user, TokenPurpose.RESET_PASSWORD, RESET_COOLDOWN):
         return
     raw = await auth_token.issue(session, user, TokenPurpose.RESET_PASSWORD, RESET_TOKEN_TTL)
     await session.commit()
-    # A fragment, like share links, so the token never reaches nginx access logs or a Referer header
-    email = email_templates.password_reset(f"{settings.app_base_url.rstrip('/')}/reset-password#{raw}")
+    email = email_templates.password_reset(_email_link("reset-password", raw))
     background_tasks.add_task(email_service.send_email, user.email, email.subject, email.text, email.html)
 
 
@@ -174,11 +186,70 @@ async def reset_password(session: AsyncSession, data: ResetPasswordRequest) -> N
     await _reject_weak_password(data.password, field="password")
     user.password_hash = await run_in_threadpool(hash_password, data.password)
     user.token_version += 1  # revokes every access token issued before the reset
+    if user.email_verified_at is None:
+        user.email_verified_at = datetime.now(UTC)  # following the link proves the user controls the inbox
     session.add(user)
     if not await auth_token.consume(session, token):
         await session.rollback()
         raise invalid
     await session.commit()
+
+
+async def send_verification_email(
+    session: AsyncSession, user: User, background_tasks: BackgroundTasks
+) -> None:
+    raw = await auth_token.issue(session, user, TokenPurpose.VERIFY_EMAIL, VERIFY_TOKEN_TTL)
+    await session.commit()
+    email = email_templates.verify_email(_email_link("verify-email", raw))
+    background_tasks.add_task(email_service.send_email, user.email, email.subject, email.text, email.html)
+
+
+async def resend_verification(
+    session: AsyncSession, data: ResendVerificationRequest, background_tasks: BackgroundTasks
+) -> None:
+    # Like request_password_reset, the caller answers the same way whatever happens here.
+    user = await get_user_by_email(session, data.email)
+    if user is None or user.status == UserStatus.BLOCKED or user.email_verified_at is not None:
+        return
+    if await auth_token.recently_issued(session, user, TokenPurpose.VERIFY_EMAIL, VERIFY_COOLDOWN):
+        return
+    await send_verification_email(session, user, background_tasks)
+
+
+async def verify_email(session: AsyncSession, data: VerifyEmailRequest) -> None:
+    invalid = HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST, detail="This verification link is invalid or has expired"
+    )
+    token = await auth_token.find_valid(session, data.token, TokenPurpose.VERIFY_EMAIL)
+    if token is None:
+        # Following the link twice (a mail client prefetching it, a double tap) isn't an error
+        used = await auth_token.find_used(session, data.token, TokenPurpose.VERIFY_EMAIL)
+        used_by = await session.get(User, used.user_id) if used else None
+        if used_by is not None and used_by.email_verified_at is not None:
+            return
+        raise invalid
+    user = await session.get(User, token.user_id)
+    if user is None:
+        raise invalid
+    if user.email_verified_at is None:
+        user.email_verified_at = datetime.now(UTC)
+        session.add(user)
+    if not await auth_token.consume(session, token):
+        # Another request used the link first; that's fine if it verified the address
+        await session.rollback()
+        await session.refresh(user)
+        if user.email_verified_at is None:
+            raise invalid
+        return
+    await session.commit()
+
+
+async def mark_email_verified(session: AsyncSession, user: User) -> User:
+    user.email_verified_at = datetime.now(UTC)
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    return user
 
 
 async def approve_user(session: AsyncSession, user: User) -> User:

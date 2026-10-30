@@ -48,6 +48,18 @@ async def find_valid(session: AsyncSession, raw: str, purpose: TokenPurpose) -> 
     return result.scalar_one_or_none()
 
 
+async def find_used(session: AsyncSession, raw: str, purpose: TokenPurpose) -> AuthToken | None:
+    """The token of this purpose if it has been used (or superseded by a newer one), expired or not."""
+    result = await session.execute(
+        select(AuthToken).where(
+            col(AuthToken.token_hash) == _hash(raw),
+            col(AuthToken.purpose) == purpose,
+            col(AuthToken.used_at).is_not(None),
+        )
+    )
+    return result.scalar_one_or_none()
+
+
 async def consume(session: AsyncSession, token: AuthToken) -> bool:
     """Mark the token used, unless a concurrent request already did. Doesn't commit, so the caller's change
     and the token's used_at commit together."""
