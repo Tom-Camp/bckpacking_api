@@ -1,4 +1,4 @@
 #!/bin/sh
 set -e
-uv run --no-dev alembic upgrade head
+alembic upgrade head
 exec "$@"

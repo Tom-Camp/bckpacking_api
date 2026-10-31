@@ -1,0 +1,11 @@
+# Allowlist: only what the image needs reaches the build context, so untracked local files
+# (.env, CLAUDE.md, .claude/, IDE folders) never do
+*
+!app/
+!migrations/
+!alembic.ini
+!entrypoint.sh
+!pyproject.toml
+!uv.lock
+**/__pycache__
+**/*.py[co]

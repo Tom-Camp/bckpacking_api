@@ -1,6 +1,14 @@
-from typing import Any, ClassVar
+from typing import Annotated, Any, ClassVar
 
-from pydantic import BaseModel, ConfigDict, ValidationInfo, field_validator
+from pydantic import BaseModel, ConfigDict, StringConstraints, ValidationInfo, field_validator
+
+# A required text field: surrounding whitespace is stripped (as ModelBase does on write) and the
+# result must not be empty, so "   " is a 422 rather than a stored "".
+NonBlankStr = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+
+# Upper bound for int fields stored in a Postgres INTEGER column, so an oversized value is a 422
+# rather than a DataError (500) from the database.
+INT32_MAX = 2_147_483_647
 
 
 def _drop_null_from_non_nullable(schema: dict[str, Any], model_cls: type[BaseModel]) -> None:

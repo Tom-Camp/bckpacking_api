@@ -1,12 +1,11 @@
-import uuid
-
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user, require_active_user
+from app.auth.tokens import create_access_token
 from app.db import get_session
 from app.models.user import User
-from app.schemas.user import UserPublic, UserRead, UserUpdate
+from app.schemas.user import ChangePasswordRequest, TokenResponse, UserRead, UserUpdate
 from app.services import user as user_service
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -27,20 +26,12 @@ async def update_me(
     return UserRead.model_validate(user)
 
 
-@router.get("", response_model=list[UserPublic])
-async def list_users(
+@router.post("/me/password", response_model=TokenResponse)
+async def change_my_password(
+    data: ChangePasswordRequest,
+    user: User = Depends(require_active_user),
     session: AsyncSession = Depends(get_session),
-) -> list[UserPublic]:
-    users = await user_service.list_users(session)
-    return [UserPublic.model_validate(u) for u in users]
-
-
-@router.get("/{user_id}", response_model=UserPublic)
-async def get_user(
-    user_id: uuid.UUID,
-    session: AsyncSession = Depends(get_session),
-) -> UserPublic:
-    user = await user_service.get_user(session, user_id)
-    if not user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    return UserPublic.model_validate(user)
+) -> TokenResponse:
+    # The change revokes every earlier token, this request's included, so hand back a fresh one
+    await user_service.change_password(session, user, data)
+    return TokenResponse(access_token=create_access_token(user))

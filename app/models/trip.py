@@ -3,7 +3,7 @@ from enum import StrEnum
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, Column, ForeignKey, UniqueConstraint, event
+from sqlalchemy import CheckConstraint, Column, ForeignKey, UniqueConstraint, event, false
 from sqlmodel import Field, Relationship
 
 from app.models.base import ModelBase, enum_field
@@ -135,6 +135,14 @@ class Trip(ModelBase, table=True):
     water_carry_l: float = Field(default=0)
     map_link: str | None = Field(default=None)
     emergency_contact: str | None = Field(default=None)
+    # Secret for the public read-only share link; NULL means the trip isn't shared.
+    share_token: str | None = Field(default=None, unique=True, index=True)
+    # Which optional sections the share link shows (core details always do). Preferences that outlive
+    # unsharing, so sharing again restores the same scope.
+    share_gear: bool = Field(default=False, sa_column_kwargs={"server_default": false()})
+    share_food: bool = Field(default=False, sa_column_kwargs={"server_default": false()})
+    share_checklist: bool = Field(default=False, sa_column_kwargs={"server_default": false()})
+    share_emergency_contact: bool = Field(default=False, sa_column_kwargs={"server_default": false()})
 
     user_id: UUID = Field(foreign_key="user.id", ondelete="CASCADE")
     user: User = Relationship(back_populates="trips", sa_relationship_kwargs={"lazy": "raise_on_sql"})
@@ -162,7 +170,8 @@ def _seed_checklist_items(_target: Trip, _args: tuple[Any, ...], kwargs: dict[st
     kwargs.setdefault(
         "checklist_items",
         [
-            TripChecklistItem(
+            # trip_id is set by the relationship on flush.
+            TripChecklistItem(  # type: ignore[call-arg]
                 item=key,
                 status=shuttle_status_for(trip_type)
                 if key == ChecklistItemKey.SHUTTLE_SCHEDULED
@@ -175,4 +184,5 @@ def _seed_checklist_items(_target: Trip, _args: tuple[Any, ...], kwargs: dict[st
 
 @event.listens_for(Trip, "init")
 def _seed_food_planner(_target: Trip, _args: tuple[Any, ...], kwargs: dict[str, Any]) -> None:
-    kwargs.setdefault("food_plan", FoodPlanner())
+    # trip_id is set by the relationship on flush.
+    kwargs.setdefault("food_plan", FoodPlanner())  # type: ignore[call-arg]

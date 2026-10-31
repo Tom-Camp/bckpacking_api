@@ -3,7 +3,6 @@ import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlmodel import select
 
 from app.auth.dependencies import require_admin
 from app.db import get_session
@@ -22,11 +21,8 @@ async def list_users(
     _: User = Depends(require_admin),
     session: AsyncSession = Depends(get_session),
 ) -> list[UserRead]:
-    query = select(User)
-    if filter_status is not None:
-        query = query.where(User.status == filter_status)
-    result = await session.execute(query)
-    return [UserRead.model_validate(u) for u in result.scalars().all()]
+    users = await user_service.list_users(session, filter_status)
+    return [UserRead.model_validate(u) for u in users]
 
 
 @router.get("/users/{user_id}", response_model=UserRead)
@@ -57,9 +53,13 @@ async def approve_user(
 @router.patch("/users/{user_id}/suspend", response_model=UserRead)
 async def suspend_user(
     user_id: uuid.UUID,
-    _: User = Depends(require_admin),
+    admin: User = Depends(require_admin),
     session: AsyncSession = Depends(get_session),
 ) -> UserRead:
+    if admin.id == user_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot suspend your own account"
+        )
     user = await user_service.get_user(session, user_id)
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
@@ -71,9 +71,11 @@ async def suspend_user(
 async def set_user_role(
     user_id: uuid.UUID,
     data: SetRoleRequest,
-    _: User = Depends(require_admin),
+    admin: User = Depends(require_admin),
     session: AsyncSession = Depends(get_session),
 ) -> UserRead:
+    if admin.id == user_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot change your own role")
     user = await user_service.get_user(session, user_id)
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")

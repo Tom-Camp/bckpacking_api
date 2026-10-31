@@ -1,8 +1,8 @@
 """initial schema
 
-Revision ID: e0d4bf639958
+Revision ID: 645d158113c1
 Revises:
-Create Date: 2026-09-23 16:54:27.573724
+Create Date: 2026-10-05 07:22:38.261442
 
 """
 
@@ -14,7 +14,7 @@ import sqlmodel.sql.sqltypes
 from alembic import op
 
 # revision identifiers, used by Alembic.
-revision: str = "e0d4bf639958"
+revision: str = "645d158113c1"
 down_revision: str | Sequence[str] | None = None
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
@@ -52,10 +52,31 @@ def upgrade() -> None:
         ),
         sa.Column("first_login", sa.DateTime(timezone=True), nullable=True),
         sa.Column("last_login", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("token_version", sa.Integer(), server_default="0", nullable=False),
+        sa.Column("email_verified_at", sa.DateTime(timezone=True), nullable=True),
         sa.PrimaryKeyConstraint("id"),
     )
     op.create_index(op.f("ix_user_email"), "user", ["email"], unique=True)
     op.create_index(op.f("ix_user_username"), "user", ["username"], unique=True)
+    op.create_table(
+        "authtoken",
+        sa.Column("id", sa.Uuid(), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
+        sa.Column("user_id", sa.Uuid(), nullable=False),
+        sa.Column(
+            "purpose",
+            sa.Enum("reset_password", "verify_email", name="tokenpurpose", native_enum=False, length=32),
+            nullable=False,
+        ),
+        sa.Column("token_hash", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("used_at", sa.DateTime(timezone=True), nullable=True),
+        sa.ForeignKeyConstraint(["user_id"], ["user.id"], ondelete="CASCADE"),
+        sa.PrimaryKeyConstraint("id"),
+    )
+    op.create_index(op.f("ix_authtoken_token_hash"), "authtoken", ["token_hash"], unique=True)
+    op.create_index(op.f("ix_authtoken_user_id"), "authtoken", ["user_id"], unique=False)
     op.create_table(
         "gearitem",
         sa.Column("id", sa.Uuid(), nullable=False),
@@ -63,7 +84,21 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.Column("user_id", sa.Uuid(), nullable=False),
         sa.Column("name", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-        sa.Column("category", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
+        sa.Column(
+            "category",
+            sa.Enum(
+                "clothing",
+                "cooking_water",
+                "misc",
+                "navigation_safety",
+                "shelter",
+                "sleep",
+                name="gearcategory",
+                native_enum=False,
+                length=32,
+            ),
+            nullable=False,
+        ),
         sa.Column("weight_g", sa.Float(), nullable=False),
         sa.Column(
             "kind",
@@ -98,11 +133,17 @@ def upgrade() -> None:
         sa.Column("water_carry_l", sa.Float(), nullable=False),
         sa.Column("map_link", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
         sa.Column("emergency_contact", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+        sa.Column("share_token", sqlmodel.sql.sqltypes.AutoString(), nullable=True),
+        sa.Column("share_gear", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.Column("share_food", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.Column("share_checklist", sa.Boolean(), server_default=sa.text("false"), nullable=False),
+        sa.Column("share_emergency_contact", sa.Boolean(), server_default=sa.text("false"), nullable=False),
         sa.Column("user_id", sa.Uuid(), nullable=False),
         sa.CheckConstraint("end_date >= start_date", name="ck_trip_end_date_after_start_date"),
         sa.ForeignKeyConstraint(["user_id"], ["user.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )
+    op.create_index(op.f("ix_trip_share_token"), "trip", ["share_token"], unique=True)
     op.create_table(
         "foodplanner",
         sa.Column("id", sa.Uuid(), nullable=False),
@@ -203,9 +244,13 @@ def downgrade() -> None:
     op.drop_table("tripgear")
     op.drop_table("tripchecklistitem")
     op.drop_table("foodplanner")
+    op.drop_index(op.f("ix_trip_share_token"), table_name="trip")
     op.drop_table("trip")
     op.drop_index(op.f("ix_gearitem_user_id"), table_name="gearitem")
     op.drop_table("gearitem")
+    op.drop_index(op.f("ix_authtoken_user_id"), table_name="authtoken")
+    op.drop_index(op.f("ix_authtoken_token_hash"), table_name="authtoken")
+    op.drop_table("authtoken")
     op.drop_index(op.f("ix_user_username"), table_name="user")
     op.drop_index(op.f("ix_user_email"), table_name="user")
     op.drop_table("user")

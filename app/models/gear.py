@@ -2,11 +2,33 @@ from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
 
-from pydantic import field_validator
 from sqlalchemy import Column, DateTime
 from sqlmodel import Field
 
 from app.models.base import ModelBase, enum_field
+
+
+class GearCategory(StrEnum):
+    CLOTHING = "clothing"
+    COOKING_WATER = "cooking_water"
+    MISCELLANEOUS = "misc"
+    NAVIGATION_SAFETY = "navigation_safety"
+    SHELTER = "shelter"
+    SLEEP = "sleep"
+
+    @property
+    def label(self) -> str:
+        return _LABELS[self]
+
+
+_LABELS: dict[GearCategory, str] = {
+    GearCategory.CLOTHING: "Clothing",
+    GearCategory.COOKING_WATER: "Cooking & Water",
+    GearCategory.MISCELLANEOUS: "Miscellaneous",
+    GearCategory.NAVIGATION_SAFETY: "Navigation & Safety",
+    GearCategory.SHELTER: "Shelter",
+    GearCategory.SLEEP: "Sleep",
+}
 
 
 class GearKind(StrEnum):
@@ -20,7 +42,7 @@ class GearItem(ModelBase, table=True):
 
     user_id: UUID = Field(foreign_key="user.id", ondelete="CASCADE", index=True)
     name: str
-    category: str
+    category: GearCategory = enum_field(GearCategory, GearCategory.MISCELLANEOUS)
     weight_g: float = Field(default=0.0)
     kind: GearKind = enum_field(GearKind, GearKind.BASE)
     notes: str | None = Field(default=None)
@@ -28,10 +50,3 @@ class GearItem(ModelBase, table=True):
     archived_at: datetime | None = Field(
         default=None, sa_column=Column(DateTime(timezone=True), nullable=True)
     )
-
-    @field_validator("category", mode="before")
-    @classmethod
-    def lowercase_category(cls, v: object) -> object:
-        if isinstance(v, str):
-            return v.lower()
-        return v

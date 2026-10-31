@@ -1,4 +1,5 @@
 from collections.abc import AsyncGenerator
+from datetime import UTC, datetime
 
 import pytest
 import pytest_asyncio
@@ -10,8 +11,10 @@ from app.auth.tokens import create_access_token
 from app.db import get_session
 from app.main import app
 from app.models.user import User, UserStatus
+from app.services import email as email_service
+from app.utils.config import settings
 
-_PASSWORD = "r1GRB3$ZB0*mbwymrJuJcdUTtdqESdf%AuD"
+_PASSWORD = "r1GRB3$ZB0*mbwymrJuJcdUTtdqESdf%AuD"  # nosec B105
 
 
 @pytest_asyncio.fixture
@@ -26,12 +29,27 @@ async def client(session: AsyncSession) -> AsyncGenerator[AsyncClient]:
     app.dependency_overrides.clear()
 
 
-async def _make_active_user(session: AsyncSession, email: str, username: str) -> User:
+@pytest.fixture
+def outbox(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, str]]:
+    sent: list[dict[str, str]] = []
+
+    async def _send(to: str, subject: str, text: str, html: str) -> None:
+        sent.append({"to": to, "subject": subject, "text": text, "html": html})
+
+    monkeypatch.setattr(email_service, "send_email", _send)
+    monkeypatch.setattr(settings, "app_base_url", "https://ui.example")
+    return sent
+
+
+async def _make_active_user(
+    session: AsyncSession, email: str, username: str, *, verified: bool = True
+) -> User:
     db_user = User(
         email=email,
         password_hash=hash_password(_PASSWORD),
         username=username,
         status=UserStatus.ACTIVE,
+        email_verified_at=datetime.now(UTC) if verified else None,
     )
     session.add(db_user)
     await session.commit()
@@ -51,9 +69,9 @@ async def other_user(session: AsyncSession) -> User:
 
 @pytest.fixture
 def auth_headers(user: User) -> dict[str, str]:
-    return {"Authorization": f"Bearer {create_access_token(user.id)}"}
+    return {"Authorization": f"Bearer {create_access_token(user)}"}
 
 
 @pytest.fixture
 def other_auth_headers(other_user: User) -> dict[str, str]:
-    return {"Authorization": f"Bearer {create_access_token(other_user.id)}"}
+    return {"Authorization": f"Bearer {create_access_token(other_user)}"}

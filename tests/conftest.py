@@ -1,6 +1,7 @@
 import os
 from collections.abc import AsyncGenerator
 
+import pytest
 import pytest_asyncio
 from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
@@ -8,10 +9,18 @@ from sqlalchemy.pool import NullPool, StaticPool
 from sqlmodel import SQLModel
 
 import app.models  # noqa: F401  registers all table models on SQLModel.metadata
+from app.utils.config import settings
 
 # Defaults to in-memory SQLite; CI sets this to a Postgres URL (postgresql+asyncpg://...).
 # Never point it at a database you care about: every test drops and recreates all tables.
 TEST_DATABASE_URL = os.environ.get("TEST_DATABASE_URL", "sqlite+aiosqlite://")
+
+
+@pytest.fixture(autouse=True)
+def no_real_email(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Registering sends email; never reach Resend with a key from the developer's .env. Tests that need
+    # a key set one themselves.
+    monkeypatch.setattr(settings, "resend_api_key", None)
 
 
 @pytest_asyncio.fixture

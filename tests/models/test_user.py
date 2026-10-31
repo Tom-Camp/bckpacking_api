@@ -72,7 +72,7 @@ async def test_username_must_be_unique(session: AsyncSession) -> None:
 
 async def test_username_required(session: AsyncSession) -> None:
     session.add(
-        User(
+        User(  # type: ignore[call-arg]
             email="username_required@example.com",
             password_hash=hashed_password,
         )

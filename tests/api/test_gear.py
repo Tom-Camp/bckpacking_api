@@ -2,6 +2,7 @@ from typing import Any, cast
 
 from httpx import AsyncClient
 
+from app.schemas.gear import GearCategory, GearCategoryOption
 from tests.api.test_trips import _create_trip
 
 Headers = dict[str, str]
@@ -29,13 +30,35 @@ async def _trip_gear(client: AsyncClient, headers: Headers, trip_id: str) -> lis
 
 
 async def test_create_and_read_gear_item(client: AsyncClient, auth_headers: Headers) -> None:
-    item = await _create_item(client, auth_headers, category="SHELTER")
+    item = await _create_item(client, auth_headers, category="shelter")
 
     assert item["category"] == "shelter"
     assert item["kind"] == "base"
     assert item["archived_at"] is None
     fetched = await client.get(f"/api/v1/gear/{item['id']}", headers=auth_headers)
     assert fetched.json() == item
+
+
+async def test_category_is_case_insensitive_on_create_and_update(
+    client: AsyncClient, auth_headers: Headers
+) -> None:
+    item = await _create_item(client, auth_headers, category="Cooking_Water")
+
+    assert item["category"] == "cooking_water"
+    assert item["category_label"] == "Cooking & Water"
+    response = await client.patch(
+        f"/api/v1/gear/{item['id']}", json={"category": "SLEEP"}, headers=auth_headers
+    )
+    assert response.status_code == 200
+    assert response.json()["category"] == "sleep"
+    assert response.json()["category_label"] == "Sleep"
+
+
+async def test_unknown_category_is_rejected(client: AsyncClient, auth_headers: Headers) -> None:
+    response = await client.post(
+        "/api/v1/gear", json={"name": "Tent", "category": "tents"}, headers=auth_headers
+    )
+    assert response.status_code == 422
 
 
 async def test_list_gear_items_is_scoped_to_owner(
@@ -193,7 +216,7 @@ async def test_trip_gear_from_another_trip_is_not_found(client: AsyncClient, aut
 
 async def test_copy_gear_from_trip(client: AsyncClient, auth_headers: Headers) -> None:
     tent = await _create_item(client, auth_headers, name="Tent")
-    stove = await _create_item(client, auth_headers, name="Stove", category="cook")
+    stove = await _create_item(client, auth_headers, name="Stove", category="cooking_water")
     old_quilt = await _create_item(client, auth_headers, name="Old quilt", category="sleep")
     source = await _create_trip(client, auth_headers, name="Source")
     await _pack(client, auth_headers, source["id"], tent["id"], packed=True)
@@ -228,3 +251,21 @@ async def test_copy_gear_from_another_users_or_unknown_trip_is_not_found(
     ]
 
     assert [r.status_code for r in responses] == [404, 404]
+
+
+async def test_gear_categories(client: AsyncClient, auth_headers: Headers) -> None:
+    response = await client.get(
+        "/api/v1/gear/categories",
+        headers=auth_headers,
+    )
+    cats: list[dict[str, Any]] = [dict(GearCategoryOption(value=c, label=c.label)) for c in GearCategory]
+    assert response.status_code == 200
+    assert isinstance(response.json(), list)
+    assert all(d.get("label") for d in response.json())
+    assert cats == response.json()
+
+
+async def test_gear_categories_no_auth(client: AsyncClient) -> None:
+    response = await client.get("/api/v1/gear/categories")
+
+    assert response.status_code == 401

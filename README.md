@@ -96,13 +96,47 @@ docker compose up -d
 uv run alembic upgrade head
 ```
 
-### 5. Start the server
+### 5. Seed development data (optional)
+
+First set `SEED_PASSWORD` in `.env` to a password of your choice (it must pass the registration strength
+check). Every seed account uses it. Never set it on a server: the script refuses to run without it.
+
+```shell
+uv run python -m scripts.seed
+```
+
+Creates `hiker@example.com` (two trips with gear, food, checklist and a share link), `admin@example.com`,
+`metric@example.com` and `blocked@example.com`. `--password` overrides `SEED_PASSWORD` for one run.
+Re-running replaces those accounts and leaves everything else alone. It also refuses a non-local
+`POSTGRES_HOST` unless passed `--allow-remote-host`.
+
+### 6. Start the server
 
 ```shell
 uv run uvicorn app.main:app --reload
 ```
 
 API docs are available at [http://localhost:8000/docs](http://localhost:8000/docs).
+
+## Docker
+
+CI builds the image on every run and, after `lint` and `test` pass on a push to `main`, publishes
+`t0mc4mp/bckpacking-api:main` and `t0mc4mp/bckpacking-api:sha-<short>` to Docker Hub.
+
+To build and run it locally against the compose Postgres:
+
+```shell
+docker compose up -d
+docker build -t bckpacking-api:dev .
+docker run --rm --network host --env-file .env bckpacking-api:dev
+```
+
+The container runs `alembic upgrade head`, then serves on `UVICORN_HOST:UVICORN_PORT` (default
+`127.0.0.1:5300`), so [http://127.0.0.1:5300/docs](http://127.0.0.1:5300/docs). Set either variable
+in the env file to change it; a `-e` flag on `docker run` overrides the env file. To publish the port
+with `-p` instead of `--network host`, set `UVICORN_HOST=0.0.0.0`. Values in the env file must not be
+quoted, since `--env-file` passes quotes through literally. Only `app/`, `migrations/` and the files
+needed to install them are copied into the image (see `.dockerignore`), so `.env` never is.
 
 ---
 

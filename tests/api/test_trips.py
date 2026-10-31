@@ -1,7 +1,10 @@
+import uuid
 from typing import Any, cast
 
 import pytest
 from httpx import AsyncClient
+
+from app.schemas.base import INT32_MAX
 
 TRIP_PAYLOAD = {"name": "Wonderland Trail", "total_distance_m": 149_700}
 
@@ -51,14 +54,16 @@ async def test_get_trip_404_for_unknown_id(client: AsyncClient, auth_headers: di
     assert response.status_code == 404
 
 
-async def test_get_trip_403_for_other_users_trip(
+async def test_get_trip_404_for_other_users_trip(
     client: AsyncClient, auth_headers: dict[str, str], other_auth_headers: dict[str, str]
 ) -> None:
     trip = await _create_trip(client, auth_headers)
 
     response = await client.get(f"/api/v1/trips/{trip['id']}", headers=other_auth_headers)
+    missing = await client.get(f"/api/v1/trips/{uuid.uuid4()}", headers=other_auth_headers)
 
-    assert response.status_code == 403
+    assert response.status_code == 404
+    assert response.json() == missing.json()
 
 
 async def test_update_trip(client: AsyncClient, auth_headers: dict[str, str]) -> None:
@@ -290,18 +295,84 @@ async def test_negative_numbers_are_rejected(
     body: dict[str, Any],
     field: str,
 ) -> None:
-    trip = await _create_trip(client, auth_headers)
-    trip_url = f"/api/v1/trips/{trip['id']}"
-    urls = {"trip": trip_url}
-    if "{trip_gear}" in path:
-        urls["trip_gear"] = await _trip_gear_url(client, auth_headers, trip["id"])
-    if "{food}" in path:
-        urls["food"] = await _food_item_url(client, auth_headers, trip["id"])
+    url = await _numeric_field_url(client, auth_headers, path)
 
-    response = await client.request(method, path.format(**urls), json=body, headers=auth_headers)
+    response = await client.request(method, url, json=body, headers=auth_headers)
 
     assert response.status_code == 422
     assert response.json()["detail"][0]["loc"] == ["body", field]
+
+
+INT_FIELDS = [
+    pytest.param(
+        "POST", "{trip}/food-plan/items", {"name": "Tea", "weight_g": 0, "kcal": 0}, "day", id="create-day"
+    ),
+    pytest.param(
+        "POST", "{trip}/food-plan/items", {"day": 1, "name": "Tea", "weight_g": 0}, "kcal", id="create-kcal"
+    ),
+    pytest.param("PATCH", "{food}", {}, "day", id="update-day"),
+    pytest.param("PATCH", "{food}", {}, "kcal", id="update-kcal"),
+    pytest.param("PATCH", "{trip}/food-plan", {}, "target_kcal_per_day", id="target-kcal"),
+    pytest.param("POST", "{trip}/gear", {}, "quantity", id="create-quantity"),
+    pytest.param("PATCH", "{trip_gear}", {}, "quantity", id="update-quantity"),
+]
+
+
+@pytest.mark.parametrize(("method", "path", "body", "field"), INT_FIELDS)
+async def test_int_fields_reject_values_beyond_int32(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    method: str,
+    path: str,
+    body: dict[str, Any],
+    field: str,
+) -> None:
+    url = await _numeric_field_url(client, auth_headers, path)
+    body = body | await _gear_item_ref(client, auth_headers, path) | {field: INT32_MAX + 1}
+
+    response = await client.request(method, url, json=body, headers=auth_headers)
+
+    assert response.status_code == 422
+    assert response.json()["detail"][0]["loc"] == ["body", field]
+
+
+@pytest.mark.parametrize(("method", "path", "body", "field"), INT_FIELDS)
+async def test_int_fields_accept_int32_max(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    method: str,
+    path: str,
+    body: dict[str, Any],
+    field: str,
+) -> None:
+    url = await _numeric_field_url(client, auth_headers, path)
+    body = body | await _gear_item_ref(client, auth_headers, path) | {field: INT32_MAX}
+
+    response = await client.request(method, url, json=body, headers=auth_headers)
+
+    assert response.status_code in (200, 201)
+    assert response.json()[field] == INT32_MAX
+
+
+async def _numeric_field_url(client: AsyncClient, headers: dict[str, str], path: str) -> str:
+    """Create a trip (plus the trip gear or food item ``path`` refers to) and fill in ``path``."""
+    trip = await _create_trip(client, headers)
+    urls = {"trip": f"/api/v1/trips/{trip['id']}"}
+    if "{trip_gear}" in path:
+        urls["trip_gear"] = await _trip_gear_url(client, headers, trip["id"])
+    if "{food}" in path:
+        urls["food"] = await _food_item_url(client, headers, trip["id"])
+    return path.format(**urls)
+
+
+async def _gear_item_ref(client: AsyncClient, headers: dict[str, str], path: str) -> dict[str, Any]:
+    """The closet item a POST to a trip's gear list needs; nothing for any other path."""
+    if path != "{trip}/gear":
+        return {}
+    item = await client.post(
+        "/api/v1/gear", json={"name": "Stove", "category": "cooking_water"}, headers=headers
+    )
+    return {"gear_item_id": item.json()["id"]}
 
 
 async def test_zero_is_allowed_for_weights_and_calories(
@@ -310,7 +381,7 @@ async def test_zero_is_allowed_for_weights_and_calories(
     trip = await _create_trip(client, auth_headers, total_distance_m=0, elevation_gain_m=0)
 
     gear = await client.post(
-        "/api/v1/gear", json={"name": "Permit", "category": "docs", "weight_g": 0}, headers=auth_headers
+        "/api/v1/gear", json={"name": "Permit", "category": "misc", "weight_g": 0}, headers=auth_headers
     )
     food = await client.post(
         f"/api/v1/trips/{trip['id']}/food-plan/items",
@@ -412,3 +483,126 @@ async def test_checklist_rejects_unknown_status_and_old_permit_key(
 
     assert (bad_status.status_code, old_key.status_code) == (422, 422)
     assert (permit.status_code, permit.json()["status"]) == (200, "not_applicable")
+
+
+@pytest.mark.parametrize("link", ["https://caltopo.com/m/ABC", "http://example.com/map?x=1"])
+async def test_map_link_accepts_http_urls(
+    client: AsyncClient, auth_headers: dict[str, str], link: str
+) -> None:
+    trip = await _create_trip(client, auth_headers, map_link=f"  {link}  ")
+
+    response = await client.patch(
+        f"/api/v1/trips/{trip['id']}", json={"map_link": link}, headers=auth_headers
+    )
+
+    assert trip["map_link"] == link
+    assert (response.status_code, response.json()["map_link"]) == (200, link)
+
+
+@pytest.mark.parametrize(
+    "link",
+    [
+        "javascript:alert(1)",
+        "JaVaScRiPt:alert(1)",
+        " javascript:alert(1)",
+        "data:text/html,<script>alert(1)</script>",
+        "//evil.test",
+        "ftp://example.com/map",
+        "https://",
+        "caltopo.com/m/ABC",
+        "http://[::1",
+    ],
+)
+async def test_map_link_rejects_non_http_urls(
+    client: AsyncClient, auth_headers: dict[str, str], link: str
+) -> None:
+    trip = await _create_trip(client, auth_headers, map_link="https://caltopo.com/m/ABC")
+
+    created = await client.post(
+        "/api/v1/trips", json=TRIP_PAYLOAD | {"map_link": link}, headers=auth_headers
+    )
+    updated = await client.patch(
+        f"/api/v1/trips/{trip['id']}", json={"map_link": link}, headers=auth_headers
+    )
+
+    for response in (created, updated):
+        assert response.status_code == 422
+        error = response.json()["detail"][0]
+        assert error["loc"] == ["body", "map_link"]
+        assert "Map link must start with http:// or https://" in error["msg"]
+    after = (await client.get(f"/api/v1/trips/{trip['id']}", headers=auth_headers)).json()
+    assert after["map_link"] == "https://caltopo.com/m/ABC"
+
+
+@pytest.mark.parametrize("cleared", [None, "", "   "])
+async def test_map_link_can_be_cleared(
+    client: AsyncClient, auth_headers: dict[str, str], cleared: str | None
+) -> None:
+    trip = await _create_trip(client, auth_headers, map_link="https://caltopo.com/m/ABC")
+
+    response = await client.patch(
+        f"/api/v1/trips/{trip['id']}", json={"map_link": cleared}, headers=auth_headers
+    )
+
+    assert (response.status_code, response.json()["map_link"]) == (200, None)
+
+
+# (create path, valid create body, field that must not be blank). Each resource's PATCH url is
+# its create path plus the new id.
+REQUIRED_TEXT_FIELDS = [
+    pytest.param("/api/v1/trips", TRIP_PAYLOAD, "name", id="trip"),
+    pytest.param("/api/v1/gear", {"name": "Tent"}, "name", id="gear-item"),
+    pytest.param("{trip}/notes", {"content": "Bring extra socks."}, "content", id="note"),
+    pytest.param(
+        "{trip}/food-plan/items",
+        {"day": 1, "name": "Oatmeal", "weight_g": 100, "kcal": 400},
+        "name",
+        id="food",
+    ),
+]
+
+
+async def _create_path(client: AsyncClient, headers: dict[str, str], path: str) -> str:
+    if "{trip}" not in path:
+        return path
+    trip = await _create_trip(client, headers)
+    return path.format(trip=f"/api/v1/trips/{trip['id']}")
+
+
+@pytest.mark.parametrize("blank", ["", "   "])
+@pytest.mark.parametrize(("path", "body", "field"), REQUIRED_TEXT_FIELDS)
+async def test_required_text_fields_reject_blank_values(
+    client: AsyncClient,
+    auth_headers: dict[str, str],
+    path: str,
+    body: dict[str, Any],
+    field: str,
+    blank: str,
+) -> None:
+    path = await _create_path(client, auth_headers, path)
+    created = await client.post(path, json=body, headers=auth_headers)
+    url = f"{path}/{created.json()['id']}"
+
+    rejected_create = await client.post(path, json=body | {field: blank}, headers=auth_headers)
+    rejected_update = await client.patch(url, json={field: blank}, headers=auth_headers)
+
+    for response in (rejected_create, rejected_update):
+        assert response.status_code == 422
+        assert response.json()["detail"][0]["loc"] == ["body", field]
+    after = await client.patch(url, json={}, headers=auth_headers)
+    assert after.json()[field] == body[field]
+
+
+@pytest.mark.parametrize(("path", "body", "field"), REQUIRED_TEXT_FIELDS)
+async def test_required_text_fields_are_stored_stripped(
+    client: AsyncClient, auth_headers: dict[str, str], path: str, body: dict[str, Any], field: str
+) -> None:
+    path = await _create_path(client, auth_headers, path)
+
+    created = await client.post(path, json=body | {field: "  First  "}, headers=auth_headers)
+    updated = await client.patch(
+        f"{path}/{created.json()['id']}", json={field: "\tSecond\n"}, headers=auth_headers
+    )
+
+    assert (created.status_code, created.json()[field]) == (201, "First")
+    assert (updated.status_code, updated.json()[field]) == (200, "Second")

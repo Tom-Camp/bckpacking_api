@@ -17,6 +17,8 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
         structlog.contextvars.clear_contextvars()
+        # Never log request headers: Authorization and X-Share-Token carry credentials. No route
+        # puts a credential in the path, so the path is logged as is.
         structlog.contextvars.bind_contextvars(
             request_id=str(uuid.uuid4()),
             method=request.method,
