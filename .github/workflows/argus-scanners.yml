@@ -43,7 +43,7 @@ jobs:
           persist-credentials: false
 
       - name: Run Bandit (Python)
-        uses: huntridge-labs/argus/.github/actions/scanner-bandit@7327ba6a386c245dc6624f53db08e0a01b28d0fe # 1.13.0
+        uses: huntridge-labs/argus/.github/actions/scanner-bandit@55e236b16587bab005247726b366f874f66aa0da # 1.14.1
         with:
           post_pr_comment: 'true'
           enable_code_security: 'true'
@@ -51,14 +51,14 @@ jobs:
 
       - name: Run OpenGrep
         if: ${{ !cancelled() }} # still scan when an earlier scanner fails
-        uses: huntridge-labs/argus/.github/actions/scanner-opengrep@7327ba6a386c245dc6624f53db08e0a01b28d0fe # 1.13.0
+        uses: huntridge-labs/argus/.github/actions/scanner-opengrep@55e236b16587bab005247726b366f874f66aa0da # 1.14.1
         with:
           enable_code_security: 'true'
           fail_on_severity: 'high'
 
       - name: Run Gitleaks (Secrets Detection)
         if: ${{ !cancelled() }}
-        uses: huntridge-labs/argus/.github/actions/scanner-gitleaks@7327ba6a386c245dc6624f53db08e0a01b28d0fe # 1.13.0
+        uses: huntridge-labs/argus/.github/actions/scanner-gitleaks@55e236b16587bab005247726b366f874f66aa0da # 1.14.1
         env:
           # Optional: For organizations, add your license
           # GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
@@ -85,7 +85,7 @@ jobs:
           persist-credentials: false
 
       - name: Generate SBOM
-        uses: huntridge-labs/argus/.github/actions/scanner-syft@7327ba6a386c245dc6624f53db08e0a01b28d0fe # 1.13.0
+        uses: huntridge-labs/argus/.github/actions/scanner-syft@55e236b16587bab005247726b366f874f66aa0da # 1.14.1
         with:
           scan_path: '.'
           output_format: 'cyclonedx-json'
@@ -121,7 +121,7 @@ jobs:
         continue-on-error: true
 
       - name: Generate combined summary
-        uses: huntridge-labs/argus/.github/actions/security-summary@7327ba6a386c245dc6624f53db08e0a01b28d0fe # 1.13.0
+        uses: huntridge-labs/argus/.github/actions/security-summary@55e236b16587bab005247726b366f874f66aa0da # 1.14.1
         with:
           post_pr_comment: 'true'
         continue-on-error: true
