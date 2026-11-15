@@ -13,7 +13,7 @@ from app.auth.tokens import create_access_token
 from app.db import get_session
 from app.main import app
 from app.models.refresh_token import RefreshToken
-from app.models.user import User, UserRole
+from app.models.user import User, UserRole, UserStatus
 from app.services import refresh_token as refresh_token_service
 from app.utils.config import settings
 from tests.api.conftest import _PASSWORD, _make_active_user
@@ -283,6 +283,61 @@ async def test_change_password_revokes_other_refresh_tokens(client: AsyncClient,
     new_raw = _cookie(response)
     assert (await _refresh(client, other_device)).status_code == 401
     assert (await _refresh(client, this_device)).status_code == 401
+    assert (await _refresh(client, new_raw)).status_code == 200
+
+
+async def test_stale_token_version_is_rejected_and_cleared(
+    client: AsyncClient, session: AsyncSession, user: User
+) -> None:
+    # A refresh that raced a password change can insert a successor after revoke_all ran. It isn't revoked,
+    # but it carries the old token_version, so it must still fail.
+    raw = _cookie(await _login(client))
+    user.token_version += 1
+    session.add(user)
+    await session.commit()
+
+    response = await _refresh(client, raw)
+
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Invalid or expired session"}
+    _assert_cleared(response)
+
+
+async def test_stale_token_version_gets_401_even_when_blocked(
+    client: AsyncClient, session: AsyncSession, user: User
+) -> None:
+    raw = _cookie(await _login(client))
+    user.token_version += 1
+    user.status = UserStatus.BLOCKED
+    session.add(user)
+    await session.commit()
+
+    response = await _refresh(client, raw)
+
+    assert response.status_code == 401
+    _assert_cleared(response)
+
+
+async def test_password_change_cookie_carries_the_new_token_version(
+    client: AsyncClient, session: AsyncSession, user: User
+) -> None:
+    login = await _login(client)
+
+    response = await client.post(
+        "/api/v1/users/me/password",
+        json={"current_password": _PASSWORD, "new_password": _NEW_PASSWORD},
+        headers={"Authorization": f"Bearer {login.json()['access_token']}"},
+    )
+
+    assert response.status_code == 200, response.text
+    new_raw = _cookie(response)
+    stored = await session.execute(
+        select(RefreshToken.token_version).where(
+            col(RefreshToken.token_hash) == refresh_token_service._hash(new_raw)
+        )
+    )
+    await session.refresh(user)
+    assert stored.scalar_one() == user.token_version == 1
     assert (await _refresh(client, new_raw)).status_code == 200
 
 

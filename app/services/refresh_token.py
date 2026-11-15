@@ -27,6 +27,7 @@ def _add(session: AsyncSession, user: User, now: datetime) -> str:
         RefreshToken(
             user_id=user.id,
             token_hash=_hash(raw),
+            token_version=user.token_version,
             expires_at=now + timedelta(days=settings.refresh_token_days),
         )
     )
@@ -41,14 +42,16 @@ async def issue(session: AsyncSession, user: User) -> str:
 
 
 async def rotate(session: AsyncSession, raw: str) -> tuple[User, str] | None:
-    """Exchange a refresh token for a successor. None if it's unknown, expired, revoked, or was rotated
-    longer ago than the grace window.
+    """Exchange a refresh token for a successor. None if it's unknown, expired, revoked, issued before the
+    user's latest password change or reset (its token_version is stale), or was rotated longer ago than the
+    grace window.
 
     A rotated token stays usable during the grace window, and each use issues another successor, so two tabs
     refreshing at once, or a response lost in transit, doesn't sign the user out. Each successor gets a fresh
     lifetime, so the session slides while it's in use.
 
-    Raises 403 for a blocked user without touching the token, so a restored user can refresh again.
+    Raises 403 for a blocked user holding an otherwise valid token, without touching the token, so a restored
+    user can refresh again. A revoked or stale token gets None (401) whatever the user's status.
     """
     now = _now()
     grace = timedelta(seconds=settings.refresh_rotation_grace_seconds)
@@ -63,7 +66,7 @@ async def rotate(session: AsyncSession, raw: str) -> tuple[User, str] | None:
     )
     token = result.scalar_one_or_none()
     user = await session.get(User, token.user_id) if token else None
-    if token is None or user is None:
+    if token is None or user is None or token.token_version != user.token_version:
         return None
     if user.status != UserStatus.ACTIVE:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account suspended")

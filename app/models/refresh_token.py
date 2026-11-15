@@ -13,6 +13,9 @@ class RefreshToken(ModelBase, table=True):
 
     user_id: UUID = Field(foreign_key="user.id", ondelete="CASCADE", index=True)
     token_hash: str = Field(unique=True, index=True)
+    # User.token_version when issued. A password change or reset bumps the user's, so a token issued by a
+    # refresh that raced the change (after its revoke_all) still stops working.
+    token_version: int
     expires_at: datetime = Field(sa_column=Column(DateTime(timezone=True), nullable=False))
     # Set when the token is first exchanged for a successor; it stays usable for a short grace window after
     rotated_at: datetime | None = Field(

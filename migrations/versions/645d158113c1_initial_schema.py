@@ -112,21 +112,6 @@ def upgrade() -> None:
     )
     op.create_index(op.f("ix_gearitem_user_id"), "gearitem", ["user_id"], unique=False)
     op.create_table(
-        "refreshtoken",
-        sa.Column("id", sa.Uuid(), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.Column("user_id", sa.Uuid(), nullable=False),
-        sa.Column("token_hash", sqlmodel.sql.sqltypes.AutoString(), nullable=False),
-        sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("rotated_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("revoked_at", sa.DateTime(timezone=True), nullable=True),
-        sa.ForeignKeyConstraint(["user_id"], ["user.id"], ondelete="CASCADE"),
-        sa.PrimaryKeyConstraint("id"),
-    )
-    op.create_index(op.f("ix_refreshtoken_token_hash"), "refreshtoken", ["token_hash"], unique=True)
-    op.create_index(op.f("ix_refreshtoken_user_id"), "refreshtoken", ["user_id"], unique=False)
-    op.create_table(
         "trip",
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
@@ -261,9 +246,6 @@ def downgrade() -> None:
     op.drop_table("foodplanner")
     op.drop_index(op.f("ix_trip_share_token"), table_name="trip")
     op.drop_table("trip")
-    op.drop_index(op.f("ix_refreshtoken_user_id"), table_name="refreshtoken")
-    op.drop_index(op.f("ix_refreshtoken_token_hash"), table_name="refreshtoken")
-    op.drop_table("refreshtoken")
     op.drop_index(op.f("ix_gearitem_user_id"), table_name="gearitem")
     op.drop_table("gearitem")
     op.drop_index(op.f("ix_authtoken_user_id"), table_name="authtoken")
