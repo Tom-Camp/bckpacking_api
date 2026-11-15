@@ -6,7 +6,8 @@ from httpx import AsyncClient
 
 from app.main import app
 
-# The only routes an anonymous caller may reach. shared.py is read-only and scoped to its share token.
+# The only routes an anonymous caller may reach. shared.py is read-only and scoped to its share token; the
+# session routes are authenticated by the refresh_token cookie rather than a bearer token.
 _PUBLIC_ROUTES = {
     ("POST", "/api/v1/auth/register"),
     ("POST", "/api/v1/auth/login"),
@@ -14,6 +15,8 @@ _PUBLIC_ROUTES = {
     ("POST", "/api/v1/auth/reset-password"),
     ("POST", "/api/v1/auth/verify-email"),
     ("POST", "/api/v1/auth/resend-verification"),
+    ("POST", "/api/v1/session/refresh"),
+    ("POST", "/api/v1/session/logout"),
 }
 _PUBLIC_PREFIX = "/api/v1/shared/"
 

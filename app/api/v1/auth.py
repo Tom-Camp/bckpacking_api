@@ -1,9 +1,10 @@
 import logging
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Response, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.cookies import set_refresh_cookie
 from app.auth.tokens import create_access_token
 from app.db import get_session
 from app.models.user import UserStatus
@@ -16,6 +17,7 @@ from app.schemas.user import (
     UserLogin,
     VerifyEmailRequest,
 )
+from app.services import refresh_token as refresh_token_service
 from app.services import user as user_service
 
 logger = logging.getLogger(__name__)
@@ -49,6 +51,7 @@ async def register(
 @router.post("/login", response_model=TokenResponse)
 async def login(
     data: UserLogin,
+    response: Response,
     session: AsyncSession = Depends(get_session),
 ) -> TokenResponse:
     user = await user_service.authenticate(session=session, user_data=data)
@@ -59,6 +62,7 @@ async def login(
     if user.email_verified_at is None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=EMAIL_NOT_VERIFIED)
     await user_service.record_login(session, user)
+    set_refresh_cookie(response, await refresh_token_service.issue(session, user))
     return TokenResponse(access_token=create_access_token(user))
 
 
