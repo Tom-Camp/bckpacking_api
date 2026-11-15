@@ -22,7 +22,7 @@ from app.schemas.user import (
     UserUpdate,
     VerifyEmailRequest,
 )
-from app.services import auth_token, email_templates
+from app.services import auth_token, email_templates, refresh_token
 from app.services import email as email_service
 from app.services.base import save_updates
 from app.utils.config import settings
@@ -144,6 +144,7 @@ async def change_password(session: AsyncSession, user: User, data: ChangePasswor
     user.password_hash = await run_in_threadpool(hash_password, data.new_password)
     user.token_version += 1  # signs out other devices; the route returns a token for this one
     session.add(user)
+    await refresh_token.revoke_all(session, user)
     await session.commit()
 
 
@@ -186,6 +187,7 @@ async def reset_password(session: AsyncSession, data: ResetPasswordRequest) -> N
     await _reject_weak_password(data.password, field="password")
     user.password_hash = await run_in_threadpool(hash_password, data.password)
     user.token_version += 1  # revokes every access token issued before the reset
+    await refresh_token.revoke_all(session, user)
     if user.email_verified_at is None:
         user.email_verified_at = datetime.now(UTC)  # following the link proves the user controls the inbox
     session.add(user)

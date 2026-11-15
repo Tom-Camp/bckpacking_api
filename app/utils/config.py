@@ -16,7 +16,18 @@ class Settings(BaseSettings):
 
     jwt_secret: str
     jwt_algorithm: str = "HS256"
-    jwt_expire_minutes: int = 60
+    # Access tokens are short-lived; clients renew them through POST /session/refresh
+    jwt_expire_minutes: int = 15
+
+    # The refresh token cookie (see auth/cookies.py, services/refresh_token.py). Its lifetime slides: each
+    # refresh issues a successor good for another refresh_token_days.
+    refresh_token_days: int = 30
+    # How long a rotated refresh token stays usable, so concurrent refreshes or a lost response don't sign
+    # the user out
+    refresh_rotation_grace_seconds: int = 60
+    # Keep True on the server. Local dev over plain http may need False (Safari won't store a Secure cookie
+    # from http://localhost).
+    refresh_cookie_secure: bool = True
 
     postgres_user: str
     postgres_password: str
