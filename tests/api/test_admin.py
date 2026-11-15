@@ -125,6 +125,18 @@ async def test_set_role_rejects_unknown_role(
     assert response.status_code == 422
 
 
+async def test_set_role_rejects_unauthenticated(
+    client: AsyncClient, user: User, admin_headers: dict[str, str]
+) -> None:
+    response = await client.patch(
+        f"/api/v1/admin/users/{user.id}/role", json={"role": "unauthenticated"}, headers=admin_headers
+    )
+
+    assert response.status_code == 422
+    fetched = await client.get(f"/api/v1/admin/users/{user.id}", headers=admin_headers)
+    assert fetched.json()["role"] == "user"
+
+
 async def test_delete_user_removes_their_trips_and_closet(
     client: AsyncClient,
     session: AsyncSession,

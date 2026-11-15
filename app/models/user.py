@@ -16,7 +16,6 @@ class UserStatus(StrEnum):
 class UserRole(StrEnum):
     USER = "user"
     ADMIN = "admin"
-    UNAUTHENTICATED = "unauthenticated"
 
 
 class Unit(StrEnum):
